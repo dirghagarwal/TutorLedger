@@ -1,7 +1,8 @@
 import Sidebar from "@/components/layout/Sidebar";
-import Topbar from "../components/layout/Topbar";
-import CommandBar from "../components/workspace/CommandBar";
+import Topbar from "@/components/layout/Topbar";
+import CommandBar from "@/components/workspace/CommandBar";
 import Stats from "@/components/workspace/Stats";
+import RightPanel from "@/components/layout/RightPanel";
 
 export default function Home() {
   return (
@@ -16,6 +17,8 @@ export default function Home() {
           <Stats />
         </div>
       </section>
+
+      <RightPanel />
     </main>
   );
 }

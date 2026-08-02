@@ -1,19 +1,24 @@
+"use client";
+
+import { Bell, Search } from "lucide-react";
+
 export default function Topbar() {
   return (
-    <header className="h-16 border-b border-[#2B3445] bg-[#131922] flex items-center justify-between px-8">
+    <header className="h-16 border-b border-[#2B3445] bg-[#131922] px-8 flex items-center justify-between">
       <div>
-        <h2 className="text-xl font-semibold text-white">
-          👋 Good Evening, Dirgh
-        </h2>
+        <h1 className="text-2xl font-bold">TutorLedger</h1>
         <p className="text-sm text-slate-400">
-          Ready to manage your tuition today?
+          AI Powered Tuition Workspace
         </p>
       </div>
 
       <div className="flex items-center gap-4">
-        <button className="h-10 w-10 rounded-xl bg-[#1B2230] hover:bg-[#263142] transition" />
-        <button className="h-10 w-10 rounded-xl bg-[#1B2230] hover:bg-[#263142] transition" />
-        <div className="h-10 w-10 rounded-full bg-blue-500" />
+        <Search className="text-slate-400" />
+        <Bell className="text-slate-400" />
+
+        <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center font-bold">
+          D
+        </div>
       </div>
     </header>
   );
