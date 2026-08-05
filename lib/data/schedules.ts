@@ -1,0 +1,58 @@
+import { DayOfWeek, type Schedule } from "@/types/schedule";
+
+export const schedules: Schedule[] = [
+  {
+    id: "schedule-1",
+    studentId: "1",
+    dayOfWeek: DayOfWeek.MONDAY,
+    startTime: "16:30",
+    endTime: "17:30",
+    subject: "Computer",
+    active: true,
+  },
+  {
+    id: "schedule-2",
+    studentId: "1",
+    dayOfWeek: DayOfWeek.FRIDAY,
+    startTime: "16:30",
+    endTime: "17:30",
+    subject: "Computer",
+    active: true,
+  },
+  {
+    id: "schedule-3",
+    studentId: "2",
+    dayOfWeek: DayOfWeek.TUESDAY,
+    startTime: "16:30",
+    endTime: "17:30",
+    subject: "Computer",
+    active: true,
+  },
+  {
+    id: "schedule-4",
+    studentId: "3",
+    dayOfWeek: DayOfWeek.THURSDAY,
+    startTime: "16:30",
+    endTime: "17:30",
+    subject: "Economics",
+    active: true,
+  },
+  {
+    id: "schedule-5",
+    studentId: "4",
+    dayOfWeek: DayOfWeek.SATURDAY,
+    startTime: "10:30",
+    endTime: "11:30",
+    subject: "Computer",
+    active: true,
+  },
+  {
+    id: "schedule-6",
+    studentId: "5",
+    dayOfWeek: DayOfWeek.SATURDAY,
+    startTime: "16:30",
+    endTime: "17:30",
+    subject: "Computer",
+    active: true,
+  },
+];

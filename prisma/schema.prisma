@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id        String     @id
+  name      String
+  subject   String
+  feeType   String
+  fee       Int
+  active    Boolean
+  color     String
+  schedules Schedule[]
+  sessions  Session[]
+  payments  Payment[]
+}
+
+model Schedule {
+  id        String    @id
+  studentId String
+  dayOfWeek String
+  startTime String
+  endTime   String
+  subject   String
+  active    Boolean
+  student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  sessions  Session[]
+
+  @@index([studentId])
+}
+
+model Session {
+  id         String      @id
+  studentId  String
+  scheduleId String
+  date       String
+  startTime  String
+  endTime    String
+  status     String
+  student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  schedule   Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  attendance Attendance?
+  payments   Payment[]
+
+  @@index([studentId, date])
+  @@index([scheduleId, date])
+}
+
+model Attendance {
+  id        String  @id
+  sessionId String  @unique
+  date      String
+  startTime String
+  endTime   String
+  status    String
+  notes     String
+  session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+}
+
+model Payment {
+  id            String   @id
+  studentId     String
+  sessionId     String?
+  amount        Int
+  date          String
+  method        String
+  status        String
+  billingPeriod String
+  notes         String
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  session       Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([studentId, date])
+  @@index([sessionId])
+}

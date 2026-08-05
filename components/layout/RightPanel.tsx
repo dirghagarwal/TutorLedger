@@ -1,60 +1,60 @@
-"use client";
+import { CalendarDays, Clock3 } from "lucide-react";
 
-const classes = [
-  {
-    student: "Tanay",
-    time: "4:30 PM",
-  },
-  {
-    student: "Ritisha",
-    time: "6:00 PM",
-  },
-];
+import { formatTime } from "@/lib/services/schedule";
+import type { Session } from "@/types/session";
 
-const activity = [
-  "✔ Took Aahan & Aalya class",
-  "💰 Rishabh paid fees",
-  "📅 Added Tanay class",
-];
+export interface SessionView {
+  session: Session;
+  studentName: string;
+}
 
-export default function RightPanel() {
+interface RightPanelProps {
+  todaySessions: readonly SessionView[];
+  nextSession: SessionView | null;
+}
+
+export default function RightPanel({
+  nextSession,
+  todaySessions,
+}: Readonly<RightPanelProps>) {
   return (
-    <aside className="w-80 border-l border-[#2B3445] bg-[#131922] p-6">
-      <h2 className="text-lg font-semibold mb-5">
-        Today
-      </h2>
+    <aside className="hidden w-80 shrink-0 border-l border-border bg-sidebar p-6 xl:block">
+      <h2 className="mb-5 text-lg font-semibold text-foreground">Today&apos;s sessions</h2>
 
       <div className="space-y-3">
-        {classes.map((item) => (
-          <div
-            key={item.student}
-            className="rounded-xl bg-[#1B2230] p-4"
-          >
-            <p className="font-medium">
-              {item.student}
-            </p>
-
-            <p className="text-sm text-slate-400">
-              {item.time}
-            </p>
-          </div>
-        ))}
+        {todaySessions.length === 0 ? (
+          <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+            No sessions scheduled today.
+          </p>
+        ) : (
+          todaySessions.map(({ session, studentName }) => (
+            <div className="rounded-xl bg-muted p-4" key={session.id}>
+              <p className="font-medium text-foreground">{studentName}</p>
+              <p className="mt-1 text-sm text-muted-foreground">{session.startTime}</p>
+              <p className="mt-2 flex items-center gap-2 text-sm text-primary">
+                <Clock3 className="size-4" />
+                {formatTime(session.startTime)} – {formatTime(session.endTime)}
+              </p>
+            </div>
+          ))
+        )}
       </div>
 
-      <h2 className="text-lg font-semibold mt-8 mb-4">
-        Recent Activity
-      </h2>
-
-      <div className="space-y-2">
-        {activity.map((item) => (
-          <div
-            key={item}
-            className="rounded-lg bg-[#1B2230] p-3 text-sm"
-          >
-            {item}
-          </div>
-        ))}
-      </div>
+      <h2 className="mb-4 mt-8 text-lg font-semibold text-foreground">Next session</h2>
+      {nextSession ? (
+        <div className="rounded-xl border border-primary/10 bg-primary/5 p-4">
+          <p className="font-medium text-foreground">{nextSession.studentName}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{nextSession.session.date}</p>
+          <p className="mt-2 flex items-center gap-2 text-sm text-primary">
+            <CalendarDays className="size-4" />
+            {formatTime(nextSession.session.startTime)}
+          </p>
+        </div>
+      ) : (
+        <p className="rounded-xl bg-muted p-4 text-sm text-muted-foreground">
+          No upcoming sessions.
+        </p>
+      )}
     </aside>
   );
 }

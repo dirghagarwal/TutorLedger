@@ -8,48 +8,70 @@ import {
   BarChart3,
   Settings,
 } from "lucide-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 const menuItems = [
-  { name: "Workspace", icon: Home },
-  { name: "Calendar", icon: Calendar },
-  { name: "Students", icon: GraduationCap },
-  { name: "Payments", icon: Wallet },
-  { name: "Reports", icon: BarChart3 },
-];
+  { name: "Workspace", href: "/", icon: Home },
+  { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Students", href: "/students", icon: GraduationCap },
+  { name: "Payments", href: "/payments", icon: Wallet },
+  { name: "Reports", href: "/reports", icon: BarChart3 },
+] as const;
 
 export default function Sidebar() {
+  const pathname = usePathname();
+
   return (
-    <aside className="w-64 h-screen bg-[#131922] border-r border-[#2B3445] flex flex-col">
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-border bg-sidebar">
       {/* Logo */}
-      <div className="h-16 flex items-center px-6 border-b border-[#2B3445]">
-        <h1 className="text-xl font-bold text-white">
-          Tutor<span className="text-blue-400">Ledger</span>
+      <Link
+        href="/"
+        className="flex h-16 items-center border-b border-border px-6"
+      >
+        <h1 className="text-xl font-bold text-foreground">
+          Tutor<span className="text-primary">Ledger</span>
         </h1>
-      </div>
+      </Link>
 
       {/* Menu */}
-      <nav className="flex-1 px-3 py-4 space-y-2">
+      <nav aria-label="Main navigation" className="flex-1 space-y-2 px-3 py-4">
         {menuItems.map((item) => {
           const Icon = item.icon;
+          const isActive = pathname === item.href;
 
           return (
-            <button
+            <Link
+              aria-current={isActive ? "page" : undefined}
               key={item.name}
-              className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-slate-300 hover:bg-[#1B2230] hover:text-white transition-all duration-200"
+              href={item.href}
+              className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+                isActive
+                  ? "bg-primary/15 text-primary"
+                  : "text-secondary-foreground hover:bg-muted hover:text-foreground"
+              }`}
             >
               <Icon size={20} />
               <span>{item.name}</span>
-            </button>
+            </Link>
           );
         })}
       </nav>
 
       {/* Bottom */}
-      <div className="border-t border-[#2B3445] p-3">
-        <button className="w-full flex items-center gap-3 rounded-xl px-4 py-3 text-slate-300 hover:bg-[#1B2230] hover:text-white transition-all duration-200">
+      <div className="border-t border-border p-3">
+        <Link
+          aria-current={pathname === "/settings" ? "page" : undefined}
+          href="/settings"
+          className={`flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-all duration-200 ${
+            pathname === "/settings"
+              ? "bg-primary/15 text-primary"
+              : "text-secondary-foreground hover:bg-muted hover:text-foreground"
+          }`}
+        >
           <Settings size={20} />
           <span>Settings</span>
-        </button>
+        </Link>
       </div>
     </aside>
   );

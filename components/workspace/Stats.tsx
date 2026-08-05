@@ -1,22 +1,22 @@
-const cards = [
-  { title: "Students", value: "7" },
-  { title: "Today's Classes", value: "3" },
-  { title: "Pending Fees", value: "₹4,800" },
-  { title: "Revenue", value: "₹18,400" },
-];
+interface StatCard {
+  title: string;
+  value: string;
+}
 
-export default function Stats() {
+interface StatsProps {
+  cards: readonly StatCard[];
+}
+
+export default function Stats({ cards }: Readonly<StatsProps>) {
   return (
-    <div className="grid grid-cols-4 gap-5 mt-8">
+    <div className="mt-8 grid gap-5 sm:grid-cols-2 xl:grid-cols-5">
       {cards.map((card) => (
         <div
           key={card.title}
-          className="rounded-2xl bg-[#131922] border border-[#2B3445] p-6"
+          className="rounded-2xl border border-border bg-card p-6 shadow-card"
         >
-          <p className="text-slate-400">{card.title}</p>
-          <h2 className="text-3xl font-bold text-white mt-2">
-            {card.value}
-          </h2>
+          <p className="text-muted-foreground">{card.title}</p>
+          <h2 className="mt-2 text-3xl font-bold text-foreground">{card.value}</h2>
         </div>
       ))}
     </div>

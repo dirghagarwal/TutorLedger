@@ -16,6 +16,21 @@ bun dev
 
 Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
 
+## Production database and Vercel
+
+TutorLedger uses PostgreSQL through Prisma. Copy `.env.example` to `.env` and set `DATABASE_URL` to a Neon pooled connection string. Set `DIRECT_DATABASE_URL` to Neon’s direct connection when running migrations or schema changes. Then run:
+
+```bash
+npm run db:generate
+npm run db:push
+npm run db:seed
+npm run build
+```
+
+In Vercel, configure the same environment variables for Preview and Production. Database-backed pages are dynamic, so a database is required at runtime rather than during the build.
+
+TutorLedger includes a service worker, web manifest, maskable icons, and an install prompt. On Android Chrome, open the deployed HTTPS URL and use the install prompt or Chrome’s “Install app” menu action.
+
 You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
 This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.

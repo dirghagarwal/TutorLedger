@@ -1,9 +1,15 @@
 import type { Metadata } from "next";
+import InstallPrompt from "@/components/pwa/InstallPrompt";
+import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import "./globals.css";
 
 export const metadata: Metadata = {
   title: "TutorLedger",
   description: "AI Powered Tuition Management",
+  applicationName: "TutorLedger",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: { capable: true, title: "TutorLedger", statusBarStyle: "black-translucent" },
+  icons: { icon: "/icons/icon-192.svg", apple: "/icons/icon-192.svg" },
 };
 
 export default function RootLayout({
@@ -13,8 +19,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className="bg-[#0B0F14] text-white antialiased">
+      <body className="bg-background text-foreground antialiased">
         {children}
+        <ServiceWorkerRegistration />
+        <InstallPrompt />
       </body>
     </html>
   );
