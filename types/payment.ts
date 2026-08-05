@@ -19,6 +19,7 @@ export enum BillingPeriod {
 export interface Payment {
   id: string;
   studentId: string;
+  sessionId?: string | null;
   amount: number;
   date: string;
   method: PaymentMethod;

@@ -20,3 +20,18 @@ export async function findAttendanceBySession(sessionId: string): Promise<Attend
   const record = await prisma.attendance.findUnique({ where: { sessionId } });
   return record ? toAttendance(record) : null;
 }
+
+export async function upsertAttendance(input: Attendance): Promise<Attendance> {
+  const record = await prisma.attendance.upsert({
+    where: { sessionId: input.sessionId },
+    create: input,
+    update: {
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      status: input.status,
+      notes: input.notes,
+    },
+  });
+  return toAttendance(record);
+}

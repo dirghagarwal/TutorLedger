@@ -12,6 +12,7 @@ interface SessionTimelineProps {
 
 const statusStyles: Record<SessionStatus, string> = {
   [SessionStatus.PLANNED]: "border-primary/20 bg-primary/10 text-primary",
+  [SessionStatus.IN_PROGRESS]: "border-info/20 bg-info/10 text-info",
   [SessionStatus.COMPLETED]:
     "border-success/20 bg-success/10 text-success",
   [SessionStatus.CANCELLED]:

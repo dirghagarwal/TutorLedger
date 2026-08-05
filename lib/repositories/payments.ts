@@ -24,3 +24,8 @@ export async function findPaymentsByStudent(studentId: string): Promise<Payment[
   const records = await prisma.payment.findMany({ where: { studentId }, orderBy: { date: "desc" } });
   return records.map(toPayment);
 }
+
+export async function createPayment(input: Payment): Promise<Payment> {
+  const record = await prisma.payment.create({ data: input });
+  return toPayment(record);
+}

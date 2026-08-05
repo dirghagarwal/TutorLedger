@@ -19,3 +19,11 @@ export async function findSessionById(id: string): Promise<Session | null> {
   const record = await prisma.session.findUnique({ where: { id } });
   return record ? toSession(record) : null;
 }
+
+export async function updateSessionStatus(
+  id: string,
+  status: SessionStatus
+): Promise<Session> {
+  const record = await prisma.session.update({ where: { id }, data: { status } });
+  return toSession(record);
+}

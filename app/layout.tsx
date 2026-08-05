@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
+import { ToastProvider } from "@/components/ui/toast";
 import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import "./globals.css";
 
@@ -20,9 +21,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className="bg-background text-foreground antialiased">
-        {children}
-        <ServiceWorkerRegistration />
-        <InstallPrompt />
+        <ToastProvider>
+          {children}
+          <ServiceWorkerRegistration />
+          <InstallPrompt />
+        </ToastProvider>
       </body>
     </html>
   );

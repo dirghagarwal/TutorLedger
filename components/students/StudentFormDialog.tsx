@@ -103,7 +103,7 @@ export default function StudentFormDialog({
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Fee model" error={form.formState.errors.feeType?.message}>
-              <select {...form.register("feeType")} className="h-8 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50">
+              <select {...form.register("feeType")} className="h-8 min-h-11 w-full rounded-lg border border-input bg-transparent px-2.5 text-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 sm:min-h-0">
                 <option value={FeeType.MONTHLY}>Monthly</option>
                 <option value={FeeType.CLASSWISE}>Class-wise</option>
               </select>

@@ -91,4 +91,13 @@ export const sessions: Session[] = [
     endTime: "17:30",
     status: SessionStatus.COMPLETED,
   },
+  {
+    id: "session-2026-08-05-2",
+    studentId: "2",
+    scheduleId: "schedule-3",
+    date: "2026-08-05",
+    startTime: "16:30",
+    endTime: "17:30",
+    status: SessionStatus.PLANNED,
+  },
 ];

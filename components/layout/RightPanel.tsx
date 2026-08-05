@@ -1,6 +1,7 @@
 import { CalendarDays, Clock3 } from "lucide-react";
 
 import { formatTime } from "@/lib/services/schedule";
+import { cn } from "@/lib/utils";
 import type { Session } from "@/types/session";
 
 export interface SessionView {
@@ -9,16 +10,18 @@ export interface SessionView {
 }
 
 interface RightPanelProps {
+  className?: string;
   todaySessions: readonly SessionView[];
   nextSession: SessionView | null;
 }
 
 export default function RightPanel({
+  className,
   nextSession,
   todaySessions,
 }: Readonly<RightPanelProps>) {
   return (
-    <aside className="hidden w-80 shrink-0 border-l border-border bg-sidebar p-6 xl:block">
+    <aside className={cn("w-80 shrink-0 border-l border-border bg-sidebar p-6", className)}>
       <h2 className="mb-5 text-lg font-semibold text-foreground">Today&apos;s sessions</h2>
 
       <div className="space-y-3">
