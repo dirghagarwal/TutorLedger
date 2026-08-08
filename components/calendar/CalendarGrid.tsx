@@ -24,15 +24,7 @@ interface CalendarGridProps {
 
 const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-function getInitials(name: string): string {
-  return name
-    .split(/\s+/)
-    .filter((part) => part !== "&")
-    .slice(0, 2)
-    .map((part) => part[0] ?? "")
-    .join("")
-    .toUpperCase();
-}
+
 
 export default function CalendarGrid({
   attendanceBySession,

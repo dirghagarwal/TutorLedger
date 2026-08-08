@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 
-import { createAttachment, findAttachmentsBySession } from "@/lib/repositories/attachments";
+import { createAttachment } from "@/lib/repositories/attachments";
 import { createSessionNote } from "@/lib/repositories/session-notes";
 import { findSessionById } from "@/lib/repositories/sessions";
 import { attachmentTypeSchema, sessionNoteInputSchema } from "@/lib/validations/session";

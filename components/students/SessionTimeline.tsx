@@ -3,7 +3,7 @@ import { CalendarDays, Clock3, Paperclip, ReceiptText } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatTime } from "@/lib/services/schedule";
-import { AttendanceStatus, type Attendance } from "@/types/attendance";
+import { type Attendance } from "@/types/attendance";
 import { type Attachment } from "@/types/attachment";
 import { type Payment } from "@/types/payment";
 import { SessionStatus, type Session } from "@/types/session";
