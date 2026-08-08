@@ -12,7 +12,7 @@ import {
 } from "@/lib/validations/workflow";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
-import { type Session } from "@/types/session";
+import { SessionStatus, type Session } from "@/types/session";
 import { getSessionStatusForAttendance } from "@/lib/services/workflow";
 
 type AttendanceResult = { ok: true; attendance: Attendance; session: Session } | { ok: false; error: string };
@@ -26,6 +26,12 @@ function revalidateWorkflow() {
   revalidatePath("/");
   revalidatePath("/calendar");
   revalidatePath("/students");
+}
+
+function calculateDurationMinutes(startedAt?: string | null, endedAt?: string | null): number | null {
+  if (!startedAt || !endedAt) return null;
+  const duration = Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000);
+  return Math.max(1, duration);
 }
 
 export async function recordAttendance(input: unknown): Promise<AttendanceResult> {
@@ -50,7 +56,14 @@ export async function recordAttendance(input: unknown): Promise<AttendanceResult
 export async function updateClassStatus(input: unknown): Promise<{ ok: true; session: Session } | { ok: false; error: string }> {
   try {
     const values = sessionStatusInputSchema.parse(input);
-    const session = await updateSessionStatus(values.sessionId, values.status);
+    const session = await updateSessionStatus(values.sessionId, values.status, {
+      startedAt: values.startedAt ?? null,
+      endedAt: values.status === SessionStatus.COMPLETED ? values.endedAt ?? null : null,
+      durationMinutes:
+        values.status === SessionStatus.COMPLETED
+          ? values.durationMinutes ?? calculateDurationMinutes(values.startedAt, values.endedAt)
+          : null,
+    });
     revalidateWorkflow();
     revalidatePath(`/students/${session.studentId}`);
     return { ok: true, session };

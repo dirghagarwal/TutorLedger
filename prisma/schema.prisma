@@ -42,13 +42,44 @@ model Session {
   startTime  String
   endTime    String
   status     String
+  startedAt      String?
+  endedAt        String?
+  durationMinutes Int?
   student    Student     @relation(fields: [studentId], references: [id], onDelete: Cascade)
   schedule   Schedule    @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   attendance Attendance?
   payments   Payment[]
+  notes      SessionNote[]
+  attachments Attachment[]
 
   @@index([studentId, date])
   @@index([scheduleId, date])
+}
+
+model SessionNote {
+  id        String   @id
+  sessionId String
+  topic     String
+  classwork String
+  homework  String
+  remarks   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+}
+
+model Attachment {
+  id          String   @id
+  sessionId   String
+  type        String
+  filename    String
+  storagePath  String
+  uploadedAt  DateTime @default(now())
+  session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, uploadedAt])
 }
 
 model Attendance {

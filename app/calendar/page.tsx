@@ -3,6 +3,9 @@ import type { CalendarStudent } from "@/components/calendar/CalendarDay";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import { findAttendance } from "@/lib/repositories/attendance";
+import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
+import { findPayments } from "@/lib/repositories/payments";
+import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
 import {
   getDateKey,
   getMonthCalendarDays,
@@ -10,11 +13,13 @@ import {
   groupSessionsByDate,
 } from "@/lib/services/sessions";
 import { findStudents } from "@/lib/repositories/students";
+import type { SessionDetailsRecord } from "@/components/sessions/SessionDetailsSheet";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendarPage() {
-  const today = new Date();
+export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
+  const requestedMonth = String((await searchParams)?.month ?? "");
+  const today = requestedMonth ? new Date(`${requestedMonth}-01T00:00:00`) : new Date();
   const [students, attendance, monthSessions] = await Promise.all([
     findStudents(),
     findAttendance(),
@@ -32,6 +37,26 @@ export default async function CalendarPage() {
   );
   const attendanceBySession = Object.fromEntries(
     attendance.map((record) => [record.sessionId, record])
+  );
+  const sessionIds = monthSessions.map((session) => session.id);
+  const [notes, attachments, payments] = await Promise.all([
+    findSessionNotesBySessionIds(sessionIds),
+    findAttachmentsBySessionIds(sessionIds),
+    findPayments(),
+  ]);
+  const detailsById: Record<string, SessionDetailsRecord> = Object.fromEntries(
+    monthSessions.map((session) => [
+      session.id,
+      {
+        session,
+        studentName: studentsById[session.studentId]?.name ?? "Unknown student",
+        studentColor: students.find((student) => student.id === session.studentId)?.color ?? "var(--avatar-fallback)",
+        attendance: attendanceBySession[session.id] ?? null,
+        payments: payments.filter((payment) => payment.sessionId === session.id),
+        notes: notes.filter((note) => note.sessionId === session.id),
+        attachments: attachments.filter((attachment) => attachment.sessionId === session.id),
+      },
+    ])
   );
 
   return (
@@ -51,8 +76,10 @@ export default async function CalendarPage() {
           <CalendarGrid
             attendanceBySession={attendanceBySession}
             calendarDays={getMonthCalendarDays(today)}
+            monthDate={today.toISOString().slice(0, 7)}
             monthLabel={monthLabel}
             sessionsByDate={groupSessionsByDate(monthSessions)}
+            sessionDetailsById={detailsById}
             studentsById={studentsById}
             today={getDateKey(today)}
           />

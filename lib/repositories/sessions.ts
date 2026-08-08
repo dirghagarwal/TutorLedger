@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/db/prisma";
 import { SessionStatus, type Session } from "@/types/session";
 
+export interface SessionUpdateData {
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationMinutes?: number | null;
+}
+
 function toSession(record: Awaited<ReturnType<typeof prisma.session.findMany>>[number]): Session {
   return { ...record, status: record.status as SessionStatus };
 }
@@ -22,8 +28,9 @@ export async function findSessionById(id: string): Promise<Session | null> {
 
 export async function updateSessionStatus(
   id: string,
-  status: SessionStatus
+  status: SessionStatus,
+  data: SessionUpdateData = {}
 ): Promise<Session> {
-  const record = await prisma.session.update({ where: { id }, data: { status } });
+  const record = await prisma.session.update({ where: { id }, data: { status, ...data } });
   return toSession(record);
 }

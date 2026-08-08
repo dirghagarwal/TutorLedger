@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { findStudentById } from "@/lib/repositories/students";
+import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
 import { getAttendanceForStudent, getAttendanceSummary } from "@/lib/services/attendance";
 import {
   getLifetimePayments,
@@ -27,10 +28,10 @@ import {
   getTodaysClasses,
 } from "@/lib/services/schedule";
 import {
-  getPastSessions,
   getSessionsByStudent,
-  getUpcomingSessions,
 } from "@/lib/services/sessions";
+import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
+import { findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
 
 export const dynamic = "force-dynamic";
@@ -69,10 +70,20 @@ export default async function StudentProfilePage({
       getRecentPayment(student.id),
     ]);
   const studentSessions = await getSessionsByStudent(student.id);
-  const [upcomingSessions, pastSessions] = await Promise.all([
-    getUpcomingSessions(studentSessions),
-    getPastSessions(studentSessions),
+  const [sessionNotes, sessionAttachments, sessionPayments] = await Promise.all([
+    findSessionNotesBySessionIds(studentSessions.map((session) => session.id)),
+    findAttachmentsBySessionIds(studentSessions.map((session) => session.id)),
+    findPayments(),
   ]);
+  const paymentsBySession = Object.fromEntries(
+    studentSessions.map((session) => [session.id, sessionPayments.filter((payment) => payment.sessionId === session.id)])
+  );
+  const notesBySession = Object.fromEntries(
+    studentSessions.map((session) => [session.id, sessionNotes.filter((note) => note.sessionId === session.id)])
+  );
+  const attachmentsBySession = Object.fromEntries(
+    studentSessions.map((session) => [session.id, sessionAttachments.filter((attachment) => attachment.sessionId === session.id)])
+  );
 
   return (
     <main className="flex min-h-screen bg-background">
@@ -167,8 +178,11 @@ export default async function StudentProfilePage({
 
           <div className="mt-6">
             <SessionTimeline
-              pastSessions={pastSessions}
-              upcomingSessions={upcomingSessions}
+              attachmentsBySession={attachmentsBySession}
+              attendanceBySession={Object.fromEntries(studentAttendance.map((attendance) => [attendance.sessionId, attendance]))}
+              notesBySession={notesBySession}
+              paymentsBySession={paymentsBySession}
+              sessions={studentSessions}
             />
           </div>
 

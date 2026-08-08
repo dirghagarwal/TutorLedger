@@ -29,6 +29,25 @@ export const sessionStatusInputSchema = z.object({
     SessionStatus.CANCELLED,
     SessionStatus.RESCHEDULED,
   ]),
+  startedAt: z.string().datetime().optional(),
+  endedAt: z.string().datetime().optional(),
+  durationMinutes: z.number().int().nonnegative().optional(),
+}).superRefine((value, context) => {
+  if (value.status === SessionStatus.IN_PROGRESS && !value.startedAt) {
+    context.addIssue({ code: "custom", message: "Started time is required when a class begins.", path: ["startedAt"] });
+  }
+
+  if (value.status === SessionStatus.COMPLETED) {
+    if (!value.startedAt) {
+      context.addIssue({ code: "custom", message: "Started time is required when a class ends.", path: ["startedAt"] });
+    }
+    if (!value.endedAt) {
+      context.addIssue({ code: "custom", message: "Ended time is required when a class ends.", path: ["endedAt"] });
+    }
+    if (value.durationMinutes == null) {
+      context.addIssue({ code: "custom", message: "Duration is required when a class ends.", path: ["durationMinutes"] });
+    }
+  }
 });
 
 export const paymentInputSchema = z.object({

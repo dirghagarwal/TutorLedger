@@ -14,6 +14,7 @@ interface CalendarSidebarProps {
   sessions: readonly Session[];
   studentsById: Readonly<Record<string, CalendarStudent>>;
   onClose: () => void;
+  onSelectSession: (session: Session) => void;
 }
 
 export default function CalendarSidebar({
@@ -22,6 +23,7 @@ export default function CalendarSidebar({
   sessions,
   studentsById,
   onClose,
+  onSelectSession,
 }: Readonly<CalendarSidebarProps>) {
   const groups = groupSessionsByStatus(sessions);
 
@@ -38,9 +40,9 @@ export default function CalendarSidebar({
         </Button>
       </div>
 
-      <SessionSection icon={<CalendarClock />} label="Upcoming sessions" sessions={groups.upcoming} studentsById={studentsById} attendanceBySession={attendanceBySession} />
-      <SessionSection icon={<CheckCircle2 />} label="Completed sessions" sessions={groups.completed} studentsById={studentsById} attendanceBySession={attendanceBySession} />
-      <SessionSection icon={<XCircle />} label="Cancelled sessions" sessions={groups.cancelled} studentsById={studentsById} attendanceBySession={attendanceBySession} />
+      <SessionSection icon={<CalendarClock />} label="Upcoming sessions" sessions={groups.upcoming} studentsById={studentsById} attendanceBySession={attendanceBySession} onSelectSession={onSelectSession} />
+      <SessionSection icon={<CheckCircle2 />} label="Completed sessions" sessions={groups.completed} studentsById={studentsById} attendanceBySession={attendanceBySession} onSelectSession={onSelectSession} />
+      <SessionSection icon={<XCircle />} label="Cancelled sessions" sessions={groups.cancelled} studentsById={studentsById} attendanceBySession={attendanceBySession} onSelectSession={onSelectSession} />
 
       <div className="mt-6 rounded-xl border border-dashed border-border-strong bg-surface-subtle p-4">
         <div className="flex items-center gap-2 text-sm font-medium text-secondary-foreground">
@@ -61,12 +63,14 @@ function SessionSection({
   label,
   sessions,
   studentsById,
+  onSelectSession,
 }: Readonly<{
   attendanceBySession: Readonly<Record<string, Attendance | undefined>>;
   icon: React.ReactNode;
   label: string;
   sessions: readonly Session[];
   studentsById: Readonly<Record<string, CalendarStudent>>;
+  onSelectSession?: (session: Session) => void;
 }>) {
   if (sessions.length === 0) return null;
 
@@ -81,7 +85,7 @@ function SessionSection({
           const student = studentsById[session.studentId];
           const attendance = attendanceBySession[session.id];
           return (
-            <div className="rounded-xl border border-border/50 bg-muted p-3" key={session.id}>
+            <button className="w-full rounded-xl border border-border/50 bg-muted p-3 text-left transition-colors hover:bg-primary/5" key={session.id} type="button" onClick={() => onSelectSession?.(session)}>
               <div className="flex items-center justify-between gap-3">
                 <p className="truncate text-sm font-medium text-foreground">
                   {student?.name ?? "Student"}
@@ -96,7 +100,7 @@ function SessionSection({
               <p className="mt-2 text-xs text-primary">
                 Attendance: {attendance?.status ?? "Not recorded"}
               </p>
-            </div>
+            </button>
           );
         })}
       </div>

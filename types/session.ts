@@ -14,4 +14,7 @@ export interface Session {
   startTime: string;
   endTime: string;
   status: SessionStatus;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationMinutes?: number | null;
 }
