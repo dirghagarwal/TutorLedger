@@ -8,6 +8,8 @@ const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date.");
 
 export const attendanceInputSchema = z.object({
   sessionId: z.string().min(1),
+  studentId: z.string().min(1).optional(),
+  scheduleId: z.string().min(1).optional(),
   date,
   startTime: z.string().min(1),
   endTime: z.string().min(1),
@@ -22,6 +24,11 @@ export const attendanceInputSchema = z.object({
 
 export const sessionStatusInputSchema = z.object({
   sessionId: z.string().min(1),
+  studentId: z.string().min(1).optional(),
+  scheduleId: z.string().min(1).optional(),
+  date: date.optional(),
+  startTime: z.string().min(1).optional(),
+  endTime: z.string().min(1).optional(),
   status: z.enum([
     SessionStatus.PLANNED,
     SessionStatus.IN_PROGRESS,
@@ -29,25 +36,9 @@ export const sessionStatusInputSchema = z.object({
     SessionStatus.CANCELLED,
     SessionStatus.RESCHEDULED,
   ]),
-  startedAt: z.string().datetime().optional(),
-  endedAt: z.string().datetime().optional(),
-  durationMinutes: z.number().int().nonnegative().optional(),
-}).superRefine((value, context) => {
-  if (value.status === SessionStatus.IN_PROGRESS && !value.startedAt) {
-    context.addIssue({ code: "custom", message: "Started time is required when a class begins.", path: ["startedAt"] });
-  }
-
-  if (value.status === SessionStatus.COMPLETED) {
-    if (!value.startedAt) {
-      context.addIssue({ code: "custom", message: "Started time is required when a class ends.", path: ["startedAt"] });
-    }
-    if (!value.endedAt) {
-      context.addIssue({ code: "custom", message: "Ended time is required when a class ends.", path: ["endedAt"] });
-    }
-    if (value.durationMinutes == null) {
-      context.addIssue({ code: "custom", message: "Duration is required when a class ends.", path: ["durationMinutes"] });
-    }
-  }
+  startedAt: z.string().datetime().optional().nullable(),
+  endedAt: z.string().datetime().optional().nullable(),
+  durationMinutes: z.number().int().nonnegative().optional().nullable(),
 });
 
 export const paymentInputSchema = z.object({

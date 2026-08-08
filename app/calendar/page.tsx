@@ -2,59 +2,68 @@ import CalendarGrid from "@/components/calendar/CalendarGrid";
 import type { CalendarStudent } from "@/components/calendar/CalendarDay";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
+import type { SessionDetailsRecord } from "@/components/sessions/SessionDetailsSheet";
 import { findAttendance } from "@/lib/repositories/attendance";
-import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
+import { findAttachments } from "@/lib/repositories/attachments";
 import { findPayments } from "@/lib/repositories/payments";
-import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
+import { findSchedules } from "@/lib/repositories/schedules";
+import { findSessionNotes } from "@/lib/repositories/session-notes";
+import { findStudents } from "@/lib/repositories/students";
 import {
   getDateKey,
   getMonthCalendarDays,
   getSessionsForMonth,
   groupSessionsByDate,
 } from "@/lib/services/sessions";
-import { findStudents } from "@/lib/repositories/students";
-import type { SessionDetailsRecord } from "@/components/sessions/SessionDetailsSheet";
+import type { Attachment } from "@/types/attachment";
+import type { Attendance } from "@/types/attendance";
+import type { Payment } from "@/types/payment";
+import type { SessionNote } from "@/types/session-note";
+import type { Student } from "@/types/students";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const requestedMonth = String((await searchParams)?.month ?? "");
   const today = requestedMonth ? new Date(`${requestedMonth}-01T00:00:00`) : new Date();
-  const [students, attendance, monthSessions] = await Promise.all([
+
+  // Execute all repository queries in parallel (1 round-trip batch)
+  const [students, attendance, schedules, payments, notes, attachments] = await Promise.all([
     findStudents(),
     findAttendance(),
-    getSessionsForMonth(today),
+    findSchedules(),
+    findPayments(),
+    findSessionNotes(),
+    findAttachments(),
   ]);
+
+  const monthSessions = await getSessionsForMonth(today, schedules);
   const monthLabel = new Intl.DateTimeFormat("en-IN", {
     month: "long",
     year: "numeric",
   }).format(today);
+
   const studentsById: Record<string, CalendarStudent> = Object.fromEntries(
-    students.map((student) => [
+    students.map((student: Student) => [
       student.id,
       { name: student.name, color: student.color },
     ])
   );
   const attendanceBySession = Object.fromEntries(
-    attendance.map((record) => [record.sessionId, record])
+    attendance.map((record: Attendance) => [record.sessionId, record])
   );
-  const sessionIds = monthSessions.map((session) => session.id);
-  const [notes, attachments, payments] = await Promise.all([
-    findSessionNotesBySessionIds(sessionIds),
-    findAttachmentsBySessionIds(sessionIds),
-    findPayments(),
-  ]);
+
   const detailsById: Record<string, SessionDetailsRecord> = Object.fromEntries(
     monthSessions.map((session) => [
       session.id,
       {
         session,
         studentName: studentsById[session.studentId]?.name ?? "Unknown student",
-        studentColor: students.find((student) => student.id === session.studentId)?.color ?? "var(--avatar-fallback)",
+        studentColor: studentsById[session.studentId]?.color ?? "var(--avatar-fallback)",
         attendance: attendanceBySession[session.id] ?? null,
-        payments: payments.filter((payment) => payment.sessionId === session.id),
-        notes: notes.filter((note) => note.sessionId === session.id),
-        attachments: attachments.filter((attachment) => attachment.sessionId === session.id),
+        payments: payments.filter((payment: Payment) => payment.sessionId === session.id),
+        notes: notes.filter((note: SessionNote) => note.sessionId === session.id),
+        attachments: attachments.filter((attachment: Attachment) => attachment.sessionId === session.id),
       },
     ])
   );

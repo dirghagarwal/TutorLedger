@@ -26,11 +26,64 @@ export async function findSessionById(id: string): Promise<Session | null> {
   return record ? toSession(record) : null;
 }
 
+export interface SessionUpsertInput {
+  id: string;
+  studentId: string;
+  scheduleId: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: SessionStatus;
+  startedAt?: string | null;
+  endedAt?: string | null;
+  durationMinutes?: number | null;
+}
+
+export async function upsertSession(input: SessionUpsertInput): Promise<Session> {
+  const record = await prisma.session.upsert({
+    where: { id: input.id },
+    create: {
+      id: input.id,
+      studentId: input.studentId,
+      scheduleId: input.scheduleId,
+      date: input.date,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      status: input.status,
+      startedAt: input.startedAt ?? null,
+      endedAt: input.endedAt ?? null,
+      durationMinutes: input.durationMinutes ?? null,
+    },
+    update: {
+      status: input.status,
+      startedAt: input.startedAt,
+      endedAt: input.endedAt,
+      durationMinutes: input.durationMinutes,
+    },
+  });
+  return toSession(record);
+}
+
 export async function updateSessionStatus(
   id: string,
   status: SessionStatus,
-  data: SessionUpdateData = {}
+  data: SessionUpdateData = {},
+  fallbackSession?: Partial<SessionUpsertInput>
 ): Promise<Session> {
+  const existing = await prisma.session.findUnique({ where: { id } });
+  if (!existing && fallbackSession?.studentId && fallbackSession?.scheduleId) {
+    return upsertSession({
+      id,
+      studentId: fallbackSession.studentId,
+      scheduleId: fallbackSession.scheduleId,
+      date: fallbackSession.date ?? new Date().toISOString().slice(0, 10),
+      startTime: fallbackSession.startTime ?? "09:00",
+      endTime: fallbackSession.endTime ?? "10:00",
+      status,
+      ...data,
+    });
+  }
+
   const record = await prisma.session.update({ where: { id }, data: { status, ...data } });
   return toSession(record);
 }

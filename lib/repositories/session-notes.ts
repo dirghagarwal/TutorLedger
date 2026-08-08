@@ -20,6 +20,11 @@ export async function findSessionNotesBySession(sessionId: string): Promise<Sess
   return records.map(toSessionNote);
 }
 
+export async function findSessionNotes(): Promise<SessionNote[]> {
+  const records = await prisma.sessionNote.findMany({ orderBy: { createdAt: "desc" } });
+  return records.map(toSessionNote);
+}
+
 export async function createSessionNote(input: Omit<SessionNote, "createdAt" | "updatedAt">): Promise<SessionNote> {
   const record = await prisma.sessionNote.create({ data: input });
   return toSessionNote(record);

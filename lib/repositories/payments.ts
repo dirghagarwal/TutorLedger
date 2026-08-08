@@ -25,6 +25,11 @@ export async function findPaymentsByStudent(studentId: string): Promise<Payment[
   return records.map(toPayment);
 }
 
+export async function findPaymentById(id: string): Promise<Payment | null> {
+  const record = await prisma.payment.findUnique({ where: { id } });
+  return record ? toPayment(record) : null;
+}
+
 export async function createPayment(input: Payment): Promise<Payment> {
   const record = await prisma.payment.create({ data: input });
   return toPayment(record);

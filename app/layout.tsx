@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
+import ColorWaveLoader from "@/components/ui/ColorWaveLoader";
 import { ToastProvider } from "@/components/ui/toast";
 import ServiceWorkerRegistration from "./ServiceWorkerRegistration";
 import "./globals.css";
@@ -22,6 +23,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="bg-background text-foreground antialiased">
         <ToastProvider>
+          <ColorWaveLoader />
           {children}
           <ServiceWorkerRegistration />
           <InstallPrompt />

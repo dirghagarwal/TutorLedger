@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 
 import { upsertAttendance } from "@/lib/repositories/attendance";
-import { createPayment } from "@/lib/repositories/payments";
-import { findSessionById, updateSessionStatus } from "@/lib/repositories/sessions";
+import { createPayment, findPaymentById } from "@/lib/repositories/payments";
+import { findSessionById, updateSessionStatus, upsertSession } from "@/lib/repositories/sessions";
 import {
   attendanceInputSchema,
   paymentInputSchema,
@@ -17,9 +17,13 @@ import { getSessionStatusForAttendance } from "@/lib/services/workflow";
 
 type AttendanceResult = { ok: true; attendance: Attendance; session: Session } | { ok: false; error: string };
 type PaymentResult = { ok: true; payment: Payment } | { ok: false; error: string };
+type UpdateStatusResult = { ok: true; session: Session; warning?: string } | { ok: false; error: string };
 
 function errorMessage(error: unknown, fallback: string): string {
-  return error instanceof Error ? error.message : fallback;
+  if (error instanceof Error) {
+    return error.message;
+  }
+  return fallback;
 }
 
 function revalidateWorkflow() {
@@ -30,43 +34,127 @@ function revalidateWorkflow() {
 
 function calculateDurationMinutes(startedAt?: string | null, endedAt?: string | null): number | null {
   if (!startedAt || !endedAt) return null;
-  const duration = Math.round((Date.parse(endedAt) - Date.parse(startedAt)) / 60000);
+  const startMs = Date.parse(startedAt);
+  const endMs = Date.parse(endedAt);
+  if (Number.isNaN(startMs) || Number.isNaN(endMs)) return null;
+  const duration = Math.round((endMs - startMs) / 60000);
   return Math.max(1, duration);
 }
 
 export async function recordAttendance(input: unknown): Promise<AttendanceResult> {
   try {
     const values = attendanceInputSchema.parse(input);
-    const session = await findSessionById(values.sessionId);
-    if (!session) return { ok: false, error: "Session no longer exists." };
+    let session = await findSessionById(values.sessionId);
+
+    // If session doesn't exist in DB yet (generated session), create it first
+    if (!session && values.studentId && values.scheduleId) {
+      session = await upsertSession({
+        id: values.sessionId,
+        studentId: values.studentId,
+        scheduleId: values.scheduleId,
+        date: values.date,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        status: getSessionStatusForAttendance(values.status as AttendanceStatus),
+      });
+    }
+
+    if (!session) {
+      return { ok: false, error: "Session record could not be found or created." };
+    }
 
     const attendance = await upsertAttendance({
       id: `attendance-${values.sessionId}`,
-      ...values,
+      sessionId: values.sessionId,
+      date: values.date,
+      startTime: values.startTime,
+      endTime: values.endTime,
+      status: values.status as AttendanceStatus,
+      notes: values.notes ?? "",
     });
-    const updatedSession = await updateSessionStatus(values.sessionId, getSessionStatusForAttendance(values.status as AttendanceStatus));
+
+    const nextStatus = getSessionStatusForAttendance(values.status as AttendanceStatus);
+    await updateSessionStatus(values.sessionId, nextStatus, {}, {
+      id: values.sessionId,
+      studentId: session.studentId,
+      scheduleId: session.scheduleId,
+      date: values.date,
+      startTime: values.startTime,
+      endTime: values.endTime,
+    });
+
+    // Verification check on database persistence
+    const verifiedSession = await findSessionById(values.sessionId);
+    if (!verifiedSession) {
+      return { ok: false, error: "Attendance was saved, but database session record verification failed." };
+    }
+
     revalidateWorkflow();
-    revalidatePath(`/students/${session.studentId}`);
-    return { ok: true, attendance, session: updatedSession };
+    revalidatePath(`/students/${verifiedSession.studentId}`);
+    return { ok: true, attendance, session: verifiedSession };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to record attendance.") };
   }
 }
 
-export async function updateClassStatus(input: unknown): Promise<{ ok: true; session: Session } | { ok: false; error: string }> {
+export async function updateClassStatus(input: unknown): Promise<UpdateStatusResult> {
   try {
     const values = sessionStatusInputSchema.parse(input);
-    const session = await updateSessionStatus(values.sessionId, values.status, {
-      startedAt: values.startedAt ?? null,
-      endedAt: values.status === SessionStatus.COMPLETED ? values.endedAt ?? null : null,
-      durationMinutes:
-        values.status === SessionStatus.COMPLETED
-          ? values.durationMinutes ?? calculateDurationMinutes(values.startedAt, values.endedAt)
-          : null,
-    });
+    let session = await findSessionById(values.sessionId);
+
+    // Upsert session if it's a virtual session not yet stored in DB
+    if (!session && values.studentId && values.scheduleId) {
+      session = await upsertSession({
+        id: values.sessionId,
+        studentId: values.studentId,
+        scheduleId: values.scheduleId,
+        date: values.date ?? new Date().toISOString().slice(0, 10),
+        startTime: values.startTime ?? "09:00",
+        endTime: values.endTime ?? "10:00",
+        status: values.status,
+      });
+    }
+
+    let startedAt = values.startedAt ?? session?.startedAt ?? null;
+    let endedAt = values.endedAt ?? session?.endedAt ?? null;
+    let durationMinutes = values.durationMinutes ?? session?.durationMinutes ?? null;
+    let warning: string | undefined;
+
+    if (values.status === SessionStatus.IN_PROGRESS) {
+      startedAt = startedAt ?? new Date().toISOString();
+    } else if (values.status === SessionStatus.COMPLETED) {
+      endedAt = endedAt ?? new Date().toISOString();
+      if (startedAt) {
+        durationMinutes = calculateDurationMinutes(startedAt, endedAt);
+      } else {
+        durationMinutes = null;
+        warning = "Class marked as completed, but started time was missing so duration was set to null.";
+      }
+    }
+
+    await updateSessionStatus(
+      values.sessionId,
+      values.status,
+      { startedAt, endedAt, durationMinutes },
+      {
+        id: values.sessionId,
+        studentId: values.studentId ?? session?.studentId,
+        scheduleId: values.scheduleId ?? session?.scheduleId,
+        date: values.date ?? session?.date,
+        startTime: values.startTime ?? session?.startTime,
+        endTime: values.endTime ?? session?.endTime,
+      }
+    );
+
+    // Database verification check
+    const verified = await findSessionById(values.sessionId);
+    if (!verified) {
+      return { ok: false, error: "Class status update failed database verification." };
+    }
+
     revalidateWorkflow();
-    revalidatePath(`/students/${session.studentId}`);
-    return { ok: true, session };
+    if (verified.studentId) revalidatePath(`/students/${verified.studentId}`);
+    return { ok: true, session: verified, warning };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to update class status.") };
   }
@@ -75,10 +163,22 @@ export async function updateClassStatus(input: unknown): Promise<{ ok: true; ses
 export async function recordPayment(input: unknown): Promise<PaymentResult> {
   try {
     const values = paymentInputSchema.parse(input);
-    const payment = await createPayment({ id: crypto.randomUUID(), ...values, status: values.status as PaymentStatus });
+    const id = crypto.randomUUID();
+    const payment = await createPayment({
+      id,
+      ...values,
+      status: values.status as PaymentStatus,
+    });
+
+    // Verify persistence in DB
+    const verified = await findPaymentById(id);
+    if (!verified) {
+      return { ok: false, error: "Payment recorded, but database verification failed." };
+    }
+
     revalidateWorkflow();
     revalidatePath(`/students/${payment.studentId}`);
-    return { ok: true, payment };
+    return { ok: true, payment: verified };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to record payment.") };
   }

@@ -20,6 +20,11 @@ export async function findAttachmentsBySession(sessionId: string): Promise<Attac
   return records.map(toAttachment);
 }
 
+export async function findAttachments(): Promise<Attachment[]> {
+  const records = await prisma.attachment.findMany({ orderBy: { uploadedAt: "desc" } });
+  return records.map(toAttachment);
+}
+
 export async function createAttachment(input: Omit<Attachment, "uploadedAt">): Promise<Attachment> {
   const record = await prisma.attachment.create({ data: input });
   return toAttachment(record);
