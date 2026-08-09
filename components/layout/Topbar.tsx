@@ -1,19 +1,32 @@
 "use client";
 
-import { Bell, Search } from "lucide-react";
+import { Bell, Menu, Search } from "lucide-react";
 
 import MobileSidebar from "@/components/layout/MobileSidebar";
+import { useSidebar } from "@/components/layout/SidebarContext";
 import { Button } from "@/components/ui/button";
 
 export default function Topbar() {
+  const { toggleSidebar } = useSidebar();
+
   return (
     <header className="flex min-h-16 items-center justify-between gap-3 border-b border-border bg-sidebar px-4 sm:px-8">
       <div className="flex min-w-0 items-center gap-2">
         <MobileSidebar />
+        <Button
+          aria-label="Toggle desktop navigation sidebar"
+          className="hidden lg:flex text-muted-foreground hover:bg-muted"
+          size="icon"
+          variant="ghost"
+          onClick={toggleSidebar}
+        >
+          <Menu className="size-5" />
+        </Button>
+
         <div className="min-w-0">
           <h1 className="truncate text-lg font-bold sm:text-2xl">TutorLedger</h1>
           <p className="hidden text-sm text-muted-foreground sm:block">
-          AI Powered Tuition Workspace
+            AI Powered Tuition Workspace
           </p>
         </div>
       </div>

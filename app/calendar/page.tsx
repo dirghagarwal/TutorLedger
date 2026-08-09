@@ -25,7 +25,9 @@ export const dynamic = "force-dynamic";
 
 export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
   const requestedMonth = String((await searchParams)?.month ?? "");
-  const today = requestedMonth ? new Date(`${requestedMonth}-01T00:00:00`) : new Date();
+  const validMonth = /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : null;
+  const rawDate = validMonth ? new Date(`${validMonth}-01T00:00:00`) : new Date();
+  const today = Number.isNaN(rawDate.getTime()) ? new Date() : rawDate;
 
   // Execute all repository queries in parallel (1 round-trip batch)
   const [students, attendance, schedules, payments, notes, attachments] = await Promise.all([

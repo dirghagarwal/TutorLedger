@@ -88,15 +88,29 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
 
   async function saveNote() {
     startTransition(async () => {
-      const result = await addSessionNote({ sessionId: currentRecord.session.id, ...note });
+      const payload = {
+        sessionId: currentRecord.session.id,
+        studentId: currentRecord.session.studentId,
+        scheduleId: currentRecord.session.scheduleId,
+        date: currentRecord.session.date,
+        startTime: currentRecord.session.startTime,
+        endTime: currentRecord.session.endTime,
+        ...note,
+      };
+      const result = await addSessionNote(payload);
       if (!result.ok) toast({ title: "Note failed", description: result.error, variant: "error" });
-      else { toast({ title: "Session note saved", variant: "success" }); router.refresh(); }
+      else { toast({ title: "Session record saved", variant: "success" }); router.refresh(); }
     });
   }
 
   async function uploadAttachment(file: File, attachmentType: AttachmentType) {
     const formData = new FormData();
     formData.set("sessionId", currentRecord.session.id);
+    formData.set("studentId", currentRecord.session.studentId);
+    formData.set("scheduleId", currentRecord.session.scheduleId);
+    formData.set("date", currentRecord.session.date);
+    formData.set("startTime", currentRecord.session.startTime);
+    formData.set("endTime", currentRecord.session.endTime);
     formData.set("type", uploadTypeFromAttachment(attachmentType));
     formData.set("file", file);
     startTransition(async () => {
