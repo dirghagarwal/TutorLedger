@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import { useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { addSessionAttachment, addSessionNote } from "@/app/actions/sessions";
@@ -56,28 +56,21 @@ function fileTypeFromName(name: string): AttachmentType {
 export default function SessionDetailsSheet({ open, onOpenChange, record }: Readonly<SessionDetailsSheetProps>) {
   const [isPending, startTransition] = useTransition();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [note, setNote] = useState({ topic: "", classwork: "", homework: "", remarks: "" });
+
   const imageCaptureRef = useRef<HTMLInputElement>(null);
   const imageUploadRef = useRef<HTMLInputElement>(null);
   const fileUploadRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const router = useRouter();
 
-  const currentRecordId = record?.session.id;
-  const latestNote = record?.notes[0];
-
-  useEffect(() => {
-    if (latestNote) {
-      setNote({
-        topic: latestNote.topic,
-        classwork: latestNote.classwork,
-        homework: latestNote.homework,
-        remarks: latestNote.remarks,
-      });
-    } else {
-      setNote({ topic: "", classwork: "", homework: "", remarks: "" });
-    }
-  }, [currentRecordId, latestNote]);
+  const currentSessionId = record?.session.id ?? null;
+  if (currentSessionId !== null && currentSessionId !== activeSessionId) {
+    setActiveSessionId(currentSessionId);
+    const latest = record?.notes[0];
+    setNote(latest ? { topic: latest.topic, classwork: latest.classwork, homework: latest.homework, remarks: latest.remarks } : { topic: "", classwork: "", homework: "", remarks: "" });
+  }
 
   const currentAttendance = record?.attendance?.status ?? record?.session.status;
   const paymentHistory = useMemo(() => record?.payments ?? [], [record?.payments]);
