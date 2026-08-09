@@ -18,7 +18,10 @@ import {
   getTotalOutstandingBalance,
 } from "@/lib/services/payments";
 import { formatDisplayDate, getTodayDateKey, parseRelativeDate } from "@/lib/utils/date";
-import { aiActionSchema } from "@/lib/validations/ai";
+import { normalizeName, stringSimilarity } from "@/lib/utils/string";
+import { aiSemanticOutputSchema, type AiSemanticOutput } from "@/lib/validations/ai";
+import { AttendanceStatus } from "@/types/attendance";
+import { PaymentMethod } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
 import type { Student } from "@/types/students";
 
@@ -34,8 +37,10 @@ export interface AiCommandResult {
   ok: boolean;
   message: string;
   actionType?: string;
+  state?: "RESOLVED" | "NEEDS_CLARIFICATION" | "REQUIRES_CONFIRMATION" | "REQUIRES_STRONG_CONFIRMATION" | "BLOCKED";
   requiresConfirmation?: boolean;
   requiresClarification?: boolean;
+  clarificationOptions?: string[];
   confirmationPayload?: {
     action: string;
     studentId?: string;
@@ -48,10 +53,18 @@ export interface AiCommandResult {
   llmUsed?: string;
 }
 
-export async function processAiCommand(prompt: string): Promise<AiCommandResult> {
+export interface ConversationMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export async function processAiCommand(
+  prompt: string,
+  history: ConversationMessage[] = []
+): Promise<AiCommandResult> {
   const trimmed = prompt.trim();
   if (!trimmed) {
-    return { ok: false, message: "Please type a prompt or query." };
+    return { ok: false, message: "Please enter a prompt or question." };
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -66,7 +79,7 @@ export async function processAiCommand(prompt: string): Promise<AiCommandResult>
   const enrolledNamesList = enrolledStudents.map((s) => s.name);
   const todayKolkataDate = getTodayDateKey();
 
-  let rawLlmOutput: unknown;
+  let semanticOutput: AiSemanticOutput;
   let modelName = "gemini-1.5-flash-latest";
 
   try {
@@ -78,91 +91,78 @@ export async function processAiCommand(prompt: string): Promise<AiCommandResult>
         responseSchema: {
           type: SchemaType.OBJECT,
           properties: {
-            action: {
-              type: SchemaType.STRING,
-            },
-            studentName: { type: SchemaType.STRING, nullable: true },
-            name: { type: SchemaType.STRING },
-            subject: { type: SchemaType.STRING },
-            fee: { type: SchemaType.NUMBER },
-            feeType: { type: SchemaType.STRING },
-            amount: { type: SchemaType.NUMBER },
-            method: { type: SchemaType.STRING },
-            status: { type: SchemaType.STRING },
-            topic: { type: SchemaType.STRING },
-            classwork: { type: SchemaType.STRING },
-            homework: { type: SchemaType.STRING },
-            remarks: { type: SchemaType.STRING },
-            date: { type: SchemaType.STRING },
-            notes: { type: SchemaType.STRING },
+            action: { type: SchemaType.STRING },
+            studentReference: { type: SchemaType.STRING, nullable: true },
+            dateReference: { type: SchemaType.STRING, nullable: true },
+            status: { type: SchemaType.STRING, nullable: true },
+            amount: { type: SchemaType.NUMBER, nullable: true },
+            method: { type: SchemaType.STRING, nullable: true },
+            topic: { type: SchemaType.STRING, nullable: true },
+            classwork: { type: SchemaType.STRING, nullable: true },
+            homework: { type: SchemaType.STRING, nullable: true },
+            remarks: { type: SchemaType.STRING, nullable: true },
+            queryTopic: { type: SchemaType.STRING, nullable: true },
+            name: { type: SchemaType.STRING, nullable: true },
+            subject: { type: SchemaType.STRING, nullable: true },
+            fee: { type: SchemaType.NUMBER, nullable: true },
+            feeType: { type: SchemaType.STRING, nullable: true },
+            isCorrection: { type: SchemaType.BOOLEAN, nullable: true },
           },
           required: ["action"],
         },
       },
     });
 
-    const systemPrompt = `You are TutorLedger's command interpreter AI.
+    const systemPrompt = `You are TutorLedger's intelligent conversational assistant AI.
 Today's date is ${todayKolkataDate} (Asia/Kolkata time zone).
 
-Available enrolled students in database:
+Enrolled students in database:
 ${enrolledNamesList.length > 0 ? enrolledNamesList.map((n) => `- "${n}"`).join("\n") : "No enrolled students yet"}
 
-STRICT DELETION RULES (MANDATORY SEPARATION):
-1. Use "DELETE_SESSION" when user asks to delete, cancel, or remove a specific class, session, or lesson (e.g. "Delete Viraj's Wednesday class", "Remove yesterday's session").
-2. Use "DELETE_STUDENT_REQUEST" ONLY when user asks to delete an entire student profile or remove a student completely (e.g. "Delete Viraj & Vivaan", "Remove student Viraj").
-3. NEVER mix DELETE_SESSION and DELETE_STUDENT_REQUEST.
+NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
+1. Parse natural human language regardless of case, typos, casual phrasing, or Hinglish ("took class", "paid 2k", "show pending", "delete Wednesday class", "who owes money").
+2. Understand conversational context and corrections (e.g. "Actually Wednesday", "Sorry meant Aahan", "Add homework").
+3. Extract semantic references ONLY if mentioned or implied. Set studentReference = null if omitted or unclear.
+4. NEVER invent database IDs, calendar dates, or student names.
+5. STRICT DELETION SEPARATION:
+   - "DELETE_SESSION": For deleting a specific class/lesson (e.g. "Delete Wednesday class", "Remove yesterday's session").
+   - "DELETE_STUDENT_REQUEST": ONLY for deleting an entire student profile (e.g. "Delete Viraj & Vivaan").`;
 
-STRICT ENTITY EXTRACTION RULES:
-1. Extract studentName ONLY if explicitly mentioned in user input.
-2. NEVER invent a student name or use generic terms like "student", "the student", "user", "person", "someone".
-3. If student name is omitted, unspecified, or ambiguous, return studentName = null.
+    const contents = [
+      { role: "user", parts: [{ text: systemPrompt }] },
+      ...history.map((h) => ({
+        role: h.role === "user" ? "user" : "model",
+        parts: [{ text: h.content }],
+      })),
+      { role: "user", parts: [{ text: `User request: "${trimmed}"` }] },
+    ];
 
-STRICT DATE RULES:
-- Extract date reference as mentioned (e.g. "Wednesday", "last Wednesday", "today", "yesterday", "5 August", "2026-08-05").
-- DO NOT compute or alter calendar dates yourself.
-
-Action Intent Schema:
-- "QUERY_STATS": Asking about pending fees, revenue, or student list. Set topic to "PENDING_FEES", "REVENUE", or "STUDENT_LIST".
-- "RECORD_ATTENDANCE": Set studentName, status ("PRESENT", "ABSENT", "CANCELLED", "RESCHEDULED"), and date.
-- "RECORD_PAYMENT": Set studentName, amount (number), and optional method ("CASH", "UPI", "BANK_TRANSFER").
-- "START_CLASS": Set studentName and date.
-- "END_CLASS": Set studentName and date.
-- "ADD_SESSION_NOTE": Set studentName, date, and homework, classwork, topic, or remarks.
-- "CREATE_STUDENT": Set name, subject, fee (number), and feeType ("MONTHLY" or "CLASSWISE").
-- "DELETE_SESSION": Set studentName and date when deleting a specific class/session.
-- "DELETE_STUDENT_REQUEST": Set studentName when deleting an entire student record.`;
-
-    const response = await model.generateContent([systemPrompt, `User command: "${trimmed}"`]);
-    const text = response.response.text();
-    rawLlmOutput = JSON.parse(text);
+    const response = await model.generateContent({ contents });
+    const rawJson = JSON.parse(response.response.text());
+    semanticOutput = aiSemanticOutputSchema.parse(rawJson);
   } catch {
-    rawLlmOutput = parsePromptFallback(trimmed, enrolledNamesList);
-    modelName = "gemini-1.5-flash-latest (fallback)";
+    semanticOutput = parsePromptFallback(trimmed, enrolledNamesList, history);
+    modelName = "gemini-1.5-flash-latest (nlp-fallback)";
   }
 
-  // Zod Validation of Structured Output
-  const parseResult = aiActionSchema.safeParse(rawLlmOutput);
-
-  if (!parseResult.success) {
-    return {
-      ok: false,
-      message: `Command schema validation failed: ${parseResult.error.issues[0]?.message ?? "Invalid format."}`,
-      llmUsed: modelName,
-    };
-  }
-
-  const action = parseResult.data;
-
-  // Execute Action via existing server actions & services
-  switch (action.action) {
+  // Handle Intent Actions
+  switch (semanticOutput.action) {
     case "RECORD_ATTENDANCE": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
       if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
       }
       const student = studentRes.student;
+      const status = semanticOutput.status ?? "PRESENT";
+      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
 
-      const targetDate = parseRelativeDate(action.date, trimmed);
       const session = await ensureSessionExists({
         studentId: student.id,
         date: targetDate,
@@ -175,12 +175,12 @@ Action Intent Schema:
         date: session.date,
         startTime: session.startTime,
         endTime: session.endTime,
-        status: action.status,
-        notes: "Recorded via Gemini AI",
+        status,
+        notes: "Recorded via TutorLedger AI",
       });
 
       if (!result.ok) {
-        return { ok: false, message: result.error, llmUsed: modelName };
+        return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
       }
 
       safeRevalidate("/");
@@ -188,61 +188,84 @@ Action Intent Schema:
       safeRevalidate(`/students/${student.id}`);
       return {
         ok: true,
+        state: "RESOLVED",
         actionType: "RECORD_ATTENDANCE",
-        message: `Marked ${student.name} ${action.status} for ${formatDisplayDate(session.date)}.`,
+        message: `Marked ${student.name} ${status} for ${formatDisplayDate(session.date)}.`,
         llmUsed: modelName,
       };
     }
 
     case "CREATE_STUDENT": {
+      if (!semanticOutput.name || !semanticOutput.subject || !semanticOutput.fee) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: "Please specify the new student's name, subject, and fee (e.g. 'Add student Priya Physics 1500 monthly').",
+          llmUsed: modelName,
+        };
+      }
+
       const result = await addStudent({
-        name: action.name,
-        subject: action.subject,
-        fee: action.fee,
-        feeType: action.feeType,
+        name: semanticOutput.name,
+        subject: semanticOutput.subject,
+        fee: semanticOutput.fee,
+        feeType: semanticOutput.feeType ?? "MONTHLY",
         color: getRandomAvatarColor(),
         active: true,
       });
 
       if (!result.ok) {
-        return { ok: false, message: result.error, llmUsed: modelName };
+        return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
       }
 
       safeRevalidate("/students");
       safeRevalidate("/");
       return {
         ok: true,
+        state: "RESOLVED",
         actionType: "CREATE_STUDENT",
-        message: `Successfully added student ${action.name} (${action.subject}) with ₹${action.fee} ${action.feeType.toLowerCase()} fee.`,
+        message: `Successfully enrolled student ${semanticOutput.name} (${semanticOutput.subject}) with ₹${semanticOutput.fee} fee.`,
         llmUsed: modelName,
       };
     }
 
     case "RECORD_PAYMENT": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
       if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
       }
       const student = studentRes.student;
+      const amount = semanticOutput.amount || 1000;
+      const method = semanticOutput.method || "UPI";
+
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_RECORD_PAYMENT" });
 
       return {
         ok: true,
+        state: "REQUIRES_CONFIRMATION",
         requiresConfirmation: true,
         actionType: "RECORD_PAYMENT",
-        message: `⚠️ Record payment of ₹${action.amount} (${action.method}) for student "${student.name}"?`,
+        message: `⚠️ Record payment of ₹${amount} (${method}) for student "${student.name}"?`,
         confirmationPayload: {
           action: "CONFIRM_RECORD_PAYMENT",
           studentId: student.id,
           studentName: student.name,
           token,
-          details: `Amount: ₹${action.amount} · Method: ${action.method} · Notes: ${action.notes}`,
+          details: `Amount: ₹${amount} · Method: ${method} · Notes: Recorded via TutorLedger AI`,
         },
         data: {
           studentId: student.id,
-          amount: action.amount,
-          method: action.method,
-          notes: action.notes,
+          amount,
+          method,
+          notes: "Recorded via TutorLedger AI",
           token,
         },
         llmUsed: modelName,
@@ -250,12 +273,19 @@ Action Intent Schema:
     }
 
     case "DELETE_SESSION": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
       if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
       }
       const student = studentRes.student;
-      const targetDate = parseRelativeDate(action.date, trimmed);
+      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
 
       const allSessions = await findSessions();
       const matchingSessions = allSessions.filter(
@@ -265,6 +295,7 @@ Action Intent Schema:
       if (matchingSessions.length === 0) {
         return {
           ok: false,
+          state: "BLOCKED",
           message: `No matching class found for ${student.name} on ${formatDisplayDate(targetDate)} (${targetDate}). No data was modified.`,
           llmUsed: modelName,
         };
@@ -273,8 +304,10 @@ Action Intent Schema:
       if (matchingSessions.length > 1) {
         return {
           ok: false,
+          state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
-          message: `I found multiple classes for ${student.name} on ${formatDisplayDate(targetDate)}. Which one do you want to delete? Available sessions: ${matchingSessions.map((s) => `${s.startTime}–${s.endTime}`).join(", ")}.`,
+          message: `I found multiple classes for ${student.name} on ${formatDisplayDate(targetDate)}. Which class time do you want to delete?`,
+          clarificationOptions: matchingSessions.map((s) => `${s.startTime}–${s.endTime}`),
           llmUsed: modelName,
         };
       }
@@ -284,6 +317,7 @@ Action Intent Schema:
 
       return {
         ok: true,
+        state: "REQUIRES_CONFIRMATION",
         requiresConfirmation: true,
         actionType: "DELETE_SESSION",
         message: `⚠️ Delete class for ${student.name} on ${formatDisplayDate(session.date)}?`,
@@ -293,7 +327,7 @@ Action Intent Schema:
           studentName: student.name,
           sessionId: session.id,
           token,
-          details: `${student.name} · ${formatDisplayDate(session.date)} · ${session.startTime}–${session.endTime} (Deletes only this single class. Student & recurring schedule will remain).`,
+          details: `${student.name} · ${formatDisplayDate(session.date)} · ${session.startTime}–${session.endTime} (Deletes only this single class. Student & recurring schedule remain).`,
         },
         data: {
           sessionId: session.id,
@@ -304,151 +338,17 @@ Action Intent Schema:
       };
     }
 
-    case "START_CLASS": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
-      if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
-      }
-      const student = studentRes.student;
-
-      const targetDate = getTodayDateKey();
-      const session = await ensureSessionExists({
-        studentId: student.id,
-        date: targetDate,
-      });
-
-      const result = await updateClassStatus({
-        sessionId: session.id,
-        status: SessionStatus.IN_PROGRESS,
-        studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
-        startTime: session.startTime,
-        endTime: session.endTime,
-      });
-
-      if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
-
-      safeRevalidate("/");
-      safeRevalidate("/calendar");
-      safeRevalidate(`/students/${student.id}`);
-      return {
-        ok: true,
-        actionType: "START_CLASS",
-        message: `Started class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to IN_PROGRESS.`,
-        llmUsed: modelName,
-      };
-    }
-
-    case "END_CLASS": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
-      if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
-      }
-      const student = studentRes.student;
-
-      const targetDate = getTodayDateKey();
-      const session = await ensureSessionExists({
-        studentId: student.id,
-        date: targetDate,
-      });
-
-      const result = await updateClassStatus({
-        sessionId: session.id,
-        status: SessionStatus.COMPLETED,
-        studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
-        startTime: session.startTime,
-        endTime: session.endTime,
-      });
-
-      if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
-
-      safeRevalidate("/");
-      safeRevalidate("/calendar");
-      safeRevalidate(`/students/${student.id}`);
-      return {
-        ok: true,
-        actionType: "END_CLASS",
-        message: `Ended class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to COMPLETED.`,
-        llmUsed: modelName,
-      };
-    }
-
-    case "ADD_SESSION_NOTE": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
-      if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
-      }
-      const student = studentRes.student;
-
-      const targetDate = getTodayDateKey();
-      const session = await ensureSessionExists({
-        studentId: student.id,
-        date: targetDate,
-      });
-
-      const result = await addSessionNote({
-        sessionId: session.id,
-        studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
-        topic: action.topic || "Tuition Session",
-        classwork: action.classwork || "",
-        homework: action.homework || "",
-        remarks: action.remarks || "",
-      });
-
-      if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
-
-      safeRevalidate(`/students/${student.id}`);
-      safeRevalidate("/calendar");
-      return {
-        ok: true,
-        actionType: "ADD_SESSION_NOTE",
-        message: `Saved session notes for ${student.name} on ${formatDisplayDate(session.date)}.`,
-        llmUsed: modelName,
-      };
-    }
-
-    case "QUERY_STATS": {
-      const students = enrolledStudents;
-
-      if (action.topic === "PENDING_FEES") {
-        const totalPending = await getTotalOutstandingBalance(students);
-        const pendingStudents = await getPendingStudents(students);
-        const names = pendingStudents.map((s) => s.name).join(", ");
-        return {
-          ok: true,
-          actionType: "QUERY_STATS",
-          message: `Total pending fees: ₹${totalPending.toLocaleString("en-IN")}.${names ? ` Students with pending fees: ${names}.` : " No students currently have pending fees."}`,
-          llmUsed: modelName,
-        };
-      }
-
-      if (action.topic === "REVENUE") {
-        const revenue = await getRevenueThisMonth();
-        return {
-          ok: true,
-          actionType: "QUERY_STATS",
-          message: `Total revenue collected this month: ₹${revenue.toLocaleString("en-IN")}.`,
-          llmUsed: modelName,
-        };
-      }
-
-      return {
-        ok: true,
-        actionType: "QUERY_STATS",
-        message: `You currently have ${students.length} active students enrolled: ${students.map((s) => s.name).join(", ")}.`,
-        llmUsed: modelName,
-      };
-    }
-
     case "DELETE_STUDENT_REQUEST": {
-      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
       if (studentRes.type !== "SUCCESS") {
-        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
       }
       const student = studentRes.student;
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_DELETE_STUDENT" });
@@ -462,6 +362,7 @@ Action Intent Schema:
 
       return {
         ok: true,
+        state: "REQUIRES_STRONG_CONFIRMATION",
         requiresConfirmation: true,
         actionType: "DELETE_STUDENT_REQUEST",
         message: `🚨 PERMANENT STUDENT DELETION REQUESTED for "${student.name}". Strong confirmation required!`,
@@ -475,49 +376,229 @@ Action Intent Schema:
         llmUsed: modelName,
       };
     }
+
+    case "START_CLASS": {
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
+      if (studentRes.type !== "SUCCESS") {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
+      }
+      const student = studentRes.student;
+      const targetDate = getTodayDateKey();
+      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+
+      const result = await updateClassStatus({
+        sessionId: session.id,
+        status: SessionStatus.IN_PROGRESS,
+        studentId: student.id,
+        scheduleId: session.scheduleId,
+        date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
+      });
+
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+
+      safeRevalidate("/");
+      safeRevalidate("/calendar");
+      safeRevalidate(`/students/${student.id}`);
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "START_CLASS",
+        message: `Started class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to IN_PROGRESS.`,
+        llmUsed: modelName,
+      };
+    }
+
+    case "END_CLASS": {
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
+      if (studentRes.type !== "SUCCESS") {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
+      }
+      const student = studentRes.student;
+      const targetDate = getTodayDateKey();
+      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+
+      const result = await updateClassStatus({
+        sessionId: session.id,
+        status: SessionStatus.COMPLETED,
+        studentId: student.id,
+        scheduleId: session.scheduleId,
+        date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
+      });
+
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+
+      safeRevalidate("/");
+      safeRevalidate("/calendar");
+      safeRevalidate(`/students/${student.id}`);
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "END_CLASS",
+        message: `Ended class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to COMPLETED.`,
+        llmUsed: modelName,
+      };
+    }
+
+    case "ADD_SESSION_NOTE": {
+      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
+      if (studentRes.type !== "SUCCESS") {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          llmUsed: modelName,
+        };
+      }
+      const student = studentRes.student;
+      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
+      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+
+      const result = await addSessionNote({
+        sessionId: session.id,
+        studentId: student.id,
+        scheduleId: session.scheduleId,
+        date: session.date,
+        topic: semanticOutput.topic || "Tuition Session Notes",
+        classwork: semanticOutput.classwork || "",
+        homework: semanticOutput.homework || "",
+        remarks: semanticOutput.remarks || "",
+      });
+
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+
+      safeRevalidate(`/students/${student.id}`);
+      safeRevalidate("/calendar");
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "ADD_SESSION_NOTE",
+        message: `Saved notes/homework for ${student.name} on ${formatDisplayDate(session.date)}.`,
+        llmUsed: modelName,
+      };
+    }
+
+    case "QUERY_STATS": {
+      const topic = semanticOutput.queryTopic || "STUDENT_LIST";
+
+      if (topic === "PENDING_FEES") {
+        const totalPending = await getTotalOutstandingBalance(enrolledStudents);
+        const pendingStudents = await getPendingStudents(enrolledStudents);
+        const names = pendingStudents.map((s) => s.name).join(", ");
+        return {
+          ok: true,
+          state: "RESOLVED",
+          actionType: "QUERY_STATS",
+          message: `Total pending fees: ₹${totalPending.toLocaleString("en-IN")}.${names ? ` Students with pending fees: ${names}.` : " No students currently have pending fees."}`,
+          llmUsed: modelName,
+        };
+      }
+
+      if (topic === "REVENUE") {
+        const revenue = await getRevenueThisMonth();
+        return {
+          ok: true,
+          state: "RESOLVED",
+          actionType: "QUERY_STATS",
+          message: `Total revenue collected this month: ₹${revenue.toLocaleString("en-IN")}.`,
+          llmUsed: modelName,
+        };
+      }
+
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "QUERY_STATS",
+        message: `You currently have ${enrolledStudents.length} active students enrolled: ${enrolledStudents.map((s) => s.name).join(", ")}.`,
+        llmUsed: modelName,
+      };
+    }
+
+    default: {
+      return {
+        ok: true,
+        state: "RESOLVED",
+        message: "I understood your message. How else can I assist with TutorLedger?",
+        llmUsed: modelName,
+      };
+    }
   }
 }
 
-type EntityResult =
+export type EntityResult =
   | { type: "SUCCESS"; student: Student }
-  | { type: "MISSING_OR_GENERIC"; message: string }
-  | { type: "MULTIPLE_MATCHES"; message: string }
-  | { type: "NOT_FOUND"; message: string };
+  | { type: "MISSING_OR_GENERIC"; message: string; options: string[] }
+  | { type: "MULTIPLE_MATCHES"; message: string; options: string[] }
+  | { type: "NOT_FOUND"; message: string; options: string[] };
 
-async function resolveStudentEntity(
+export async function resolveStudentEntity(
   rawName: string | null | undefined,
-  enrolledStudents: Student[]
+  enrolledStudents: Student[],
+  history: ConversationMessage[] = []
 ): Promise<EntityResult> {
-  const availableListMsg = enrolledStudents.length > 0
-    ? `Available enrolled students: ${enrolledStudents.map((s) => `"${s.name}"`).join(", ")}.`
-    : "No enrolled students found.";
+  const options = enrolledStudents.map((s) => s.name);
 
-  if (!rawName || isGenericName(rawName)) {
+  let effectiveName = rawName;
+  if ((!effectiveName || isGenericName(effectiveName)) && history.length > 0) {
+    for (let i = history.length - 1; i >= 0; i--) {
+      const msg = history[i]?.content || "";
+      const found = enrolledStudents.find((s) => {
+        const parts = normalizeName(s.name).split(/\s+and\s+|\s+/);
+        return parts.some((p) => p.length >= 3 && normalizeName(msg).includes(p));
+      });
+      if (found) {
+        effectiveName = found.name;
+        break;
+      }
+    }
+  }
+
+  if (!effectiveName || isGenericName(effectiveName)) {
     return {
       type: "MISSING_OR_GENERIC",
-      message: `Which student did you mean? ${availableListMsg}`,
+      message: enrolledStudents.length > 0
+        ? "Which student did you mean? Select one below:"
+        : "No enrolled students found. Please add a student first.",
+      options,
     };
   }
 
-  const normalized = rawName.toLowerCase().trim();
+  const normRaw = normalizeName(effectiveName);
 
-  // 1. Exact match (case-insensitive & trimmed)
+  // 1. Exact normalized match (case-insensitive & whitespace collapse)
   const exactMatch = enrolledStudents.find(
-    (s) => s.name.toLowerCase().trim() === normalized
+    (s) => normalizeName(s.name) === normRaw
   );
   if (exactMatch) {
     return { type: "SUCCESS", student: exactMatch };
   }
 
-  // 2. Substring & word matches
+  // 2. Substring & word matches (ignoring generic conjunctions)
   const matches = enrolledStudents.filter((s) => {
-    const sName = s.name.toLowerCase().trim();
-    const parts = sName.split(/\s*(?:&|and|,)\s*/);
-    return (
-      sName.includes(normalized) ||
-      normalized.includes(sName) ||
-      parts.some((part) => part && (normalized.includes(part) || part.includes(normalized)))
-    );
+    const normStudent = normalizeName(s.name);
+    if (normStudent === normRaw) return true;
+    const studentParts = normStudent.split(/\s+/).filter((p) => p !== "and" && p.length >= 2);
+    const rawParts = normRaw.split(/\s+/).filter((p) => p !== "and" && p.length >= 2);
+    return studentParts.some((sp) => rawParts.includes(sp)) || rawParts.some((rp) => studentParts.includes(rp));
   });
 
   if (matches.length === 1 && matches[0]) {
@@ -525,15 +606,39 @@ async function resolveStudentEntity(
   }
 
   if (matches.length > 1) {
+    const bestMatch = matches.find((m) => {
+      const normM = normalizeName(m.name);
+      return normM.includes(normRaw) || normRaw.includes(normM);
+    });
+    if (bestMatch) {
+      return { type: "SUCCESS", student: bestMatch };
+    }
+
     return {
       type: "MULTIPLE_MATCHES",
-      message: `Multiple students matched "${rawName}". Which student did you mean? Matching options: ${matches.map((m) => `"${m.name}"`).join(", ")}.`,
+      message: `I found multiple students matching "${rawName || effectiveName}". Which one did you mean?`,
+      options: matches.map((m) => m.name),
     };
+  }
+
+  // 3. Typo-tolerant similarity scoring (threshold >= 0.75)
+  const scored = enrolledStudents
+    .map((s) => ({ student: s, score: stringSimilarity(rawName || effectiveName || "", s.name) }))
+    .filter((item) => item.score >= 0.75)
+    .sort((a, b) => b.score - a.score);
+
+  if (scored.length === 1 && scored[0]) {
+    return { type: "SUCCESS", student: scored[0].student };
+  }
+
+  if (scored.length > 1 && scored[0] && scored[1] && scored[0].score > scored[1].score + 0.15) {
+    return { type: "SUCCESS", student: scored[0].student };
   }
 
   return {
     type: "NOT_FOUND",
-    message: `Could not find student matching "${rawName}". ${availableListMsg}`,
+    message: `I couldn't find a student matching "${rawName}". Your enrolled students are:`,
+    options,
   };
 }
 
@@ -552,77 +657,97 @@ function isGenericName(name: string): boolean {
   return genericWords.includes(norm);
 }
 
-function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
+function parsePromptFallback(
+  prompt: string,
+  enrolledNames: string[],
+  history: ConversationMessage[] = []
+): AiSemanticOutput {
   const lower = prompt.toLowerCase();
 
-  if (lower.includes("pending") || lower.includes("due") || lower.includes("unpaid")) {
-    return { action: "QUERY_STATS", topic: "PENDING_FEES" };
-  }
-
-  if (lower.includes("revenue") || lower.includes("collected") || lower.includes("earnings")) {
-    return { action: "QUERY_STATS", topic: "REVENUE" };
-  }
-
-  if (lower.includes("show students") || lower.includes("list students") || lower.includes("all students")) {
-    return { action: "QUERY_STATS", topic: "STUDENT_LIST" };
-  }
-
-  const matchedName = enrolledNames.find((n) => {
-    const parts = n.toLowerCase().split(/\s*(?:&|and|,)\s*/);
-    return parts.some((p) => p.length > 2 && lower.includes(p.toLowerCase()));
+  // Extract student from prompt or carry over from recent conversation history
+  let matchedName = enrolledNames.find((n) => {
+    const parts = normalizeName(n).split(/\s+and\s+|\s+/);
+    return parts.some((p) => p.length >= 3 && lower.includes(p));
   }) ?? null;
 
-  let date = "today";
-  if (lower.includes("tomorrow")) date = "tomorrow";
-  if (lower.includes("yesterday")) date = "yesterday";
+  if (!matchedName && history.length > 0) {
+    const lastUserMsg = [...history].reverse().find((h) => h.role === "user")?.content.toLowerCase() || "";
+    matchedName = enrolledNames.find((n) => {
+      const parts = normalizeName(n).split(/\s+and\s+|\s+/);
+      return parts.some((p) => p.length >= 3 && lastUserMsg.includes(p));
+    }) ?? null;
+  }
 
-  // STRICT SEPARATION FOR FALLBACK:
-  // If prompt explicitly mentions "class" or "session", fallback to DELETE_SESSION
+  // Handle follow-up date corrections like "Actually Wednesday"
+  if (
+    lower.includes("actually") ||
+    lower.includes("meant") ||
+    lower.includes("instead") ||
+    /\b(wednesday|monday|tuesday|thursday|friday|saturday|sunday)\b/.test(lower)
+  ) {
+    if (!lower.includes("delete") && !lower.includes("remove") && !lower.includes("payment")) {
+      return {
+        action: "RECORD_ATTENDANCE",
+        studentReference: matchedName,
+        status: AttendanceStatus.PRESENT,
+        dateReference: prompt,
+      };
+    }
+  }
+
+  let dateReference = "today";
+  if (lower.includes("tomorrow")) dateReference = "tomorrow";
+  if (lower.includes("yesterday")) dateReference = "yesterday";
+
   if ((lower.includes("delete") || lower.includes("remove")) && (lower.includes("class") || lower.includes("session") || lower.includes("wednesday") || lower.includes("monday") || lower.includes("tuesday") || lower.includes("thursday") || lower.includes("friday") || lower.includes("saturday") || lower.includes("sunday"))) {
-    return { action: "DELETE_SESSION", studentName: matchedName, date: prompt };
+    return { action: "DELETE_SESSION", studentReference: matchedName, dateReference: prompt };
   }
 
   if (lower.includes("delete") || lower.includes("remove")) {
-    return { action: "DELETE_STUDENT_REQUEST", studentName: matchedName };
+    return { action: "DELETE_STUDENT_REQUEST", studentReference: matchedName };
   }
 
   if (lower.includes("start")) {
-    return { action: "START_CLASS", studentName: matchedName, date };
+    return { action: "START_CLASS", studentReference: matchedName, dateReference };
   }
 
-  if (lower.includes("end")) {
-    return { action: "END_CLASS", studentName: matchedName, date };
+  if (lower.includes("end") || lower.includes("finish")) {
+    return { action: "END_CLASS", studentReference: matchedName, dateReference };
   }
 
   if (lower.includes("homework") || lower.includes("classwork") || lower.includes("topic") || lower.includes("note")) {
     const hwMatch = prompt.match(/(?:homework|hw):\s*(.+)/i);
     return {
       action: "ADD_SESSION_NOTE",
-      studentName: matchedName,
-      date,
+      studentReference: matchedName,
+      dateReference,
       homework: hwMatch?.[1] || prompt,
     };
   }
 
-  if (lower.includes("present") || lower.includes("absent") || lower.includes("cancelled") || lower.includes("took")) {
-    let status = "PRESENT";
-    if (lower.includes("absent")) status = "ABSENT";
-    if (lower.includes("cancelled")) status = "CANCELLED";
-    return { action: "RECORD_ATTENDANCE", studentName: matchedName, status, date };
+  if (lower.includes("present") || lower.includes("absent") || lower.includes("cancelled") || lower.includes("took") || lower.includes("had") || lower.includes("taught")) {
+    let status = AttendanceStatus.PRESENT;
+    if (lower.includes("absent")) status = AttendanceStatus.ABSENT;
+    if (lower.includes("cancelled")) status = AttendanceStatus.CANCELLED;
+    return { action: "RECORD_ATTENDANCE", studentReference: matchedName, status, dateReference };
   }
 
-  if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees")) {
-    const amountMatch = prompt.match(/(\d+)/);
+  if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees") || lower.includes("2k") || lower.includes("1k")) {
+    const amountMatch = prompt.match(/(\d+)\s*k?/i);
+    let amount = amountMatch ? Number(amountMatch[1]) : 1000;
+    if (prompt.toLowerCase().includes("2k")) amount = 2000;
+    if (prompt.toLowerCase().includes("1k")) amount = 1000;
+
     return {
       action: "RECORD_PAYMENT",
-      studentName: matchedName,
-      amount: amountMatch ? Number(amountMatch[1]) : 500,
-      method: "UPI",
-      date,
+      studentReference: matchedName,
+      amount,
+      method: PaymentMethod.UPI,
+      dateReference,
     };
   }
 
-  return { action: "QUERY_STATS", topic: "STUDENT_LIST" };
+  return { action: "QUERY_STATS", queryTopic: "STUDENT_LIST" };
 }
 
 function getRandomAvatarColor(): string {

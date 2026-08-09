@@ -2,12 +2,13 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, AlertTriangle, CheckCircle2, XCircle, Trash2 } from "lucide-react";
+import { Sparkles, Send, Loader2, AlertTriangle, CheckCircle2, HelpCircle, XCircle, Trash2 } from "lucide-react";
 
-import { processAiCommand, type AiCommandResult } from "@/app/actions/ai";
+import { processAiCommand, type AiCommandResult, type ConversationMessage } from "@/app/actions/ai";
 import { deleteSessionAction } from "@/app/actions/sessions";
 import { deleteStudent } from "@/app/actions/students";
 import { recordPayment } from "@/app/actions/workflow";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -17,8 +18,8 @@ import { PaymentMethod, PaymentStatus } from "@/types/payment";
 const samplePrompts = [
   "Took Aahan class today",
   "Add student Priya Physics 1500 monthly",
-  "Record payment 2000 for Rahul",
-  "Show pending fees",
+  "Who owes me money?",
+  "Aahan paid 2k",
   "Delete Viraj Wednesday class",
 ];
 
@@ -29,6 +30,9 @@ export default function CommandBar() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AiCommandResult | null>(null);
 
+  // Short-lived conversational history
+  const [history, setHistory] = useState<ConversationMessage[]>([]);
+
   // Strong Student Deletion State
   const [strongDeleteStudent, setStrongDeleteStudent] = useState<{
     id: string;
@@ -37,19 +41,36 @@ export default function CommandBar() {
   } | null>(null);
   const [typedConfirmName, setTypedConfirmName] = useState("");
 
-  async function handleSubmit(e?: React.FormEvent) {
-    if (e) e.preventDefault();
-    if (!prompt.trim() || isPending) return;
+  async function executePrompt(inputPrompt: string) {
+    if (!inputPrompt.trim() || isPending) return;
 
     setResult(null);
+    const newHistory: ConversationMessage[] = [...history, { role: "user", content: inputPrompt }];
+
     startTransition(async () => {
-      const res = await processAiCommand(prompt);
+      const res = await processAiCommand(inputPrompt, newHistory);
       setResult(res);
-      if (res.ok && !res.requiresConfirmation) {
+
+      if (res.ok && res.state === "RESOLVED") {
         toast({ title: "AI Command Executed", variant: "success" });
+        setHistory([...newHistory, { role: "assistant", content: res.message }]);
         router.refresh();
+      } else {
+        setHistory([...newHistory, { role: "assistant", content: res.message }]);
       }
     });
+  }
+
+  async function handleSubmit(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    await executePrompt(prompt);
+    setPrompt("");
+  }
+
+  async function handleOptionSelect(option: string) {
+    const clarificationPrompt = `${prompt ? `${prompt} ` : ""}${option}`.trim();
+    setPrompt("");
+    await executePrompt(clarificationPrompt);
   }
 
   async function handleConfirmDeleteSession(sessionId: string) {
@@ -63,6 +84,7 @@ export default function CommandBar() {
       toast({ title: "Class deleted", description: "This single class was deleted. Student and recurring schedule remain intact.", variant: "success" });
       setResult({
         ok: true,
+        state: "RESOLVED",
         message: "Successfully deleted single class. Student profile and recurring schedule are preserved.",
       });
       router.refresh();
@@ -82,6 +104,7 @@ export default function CommandBar() {
       setTypedConfirmName("");
       setResult({
         ok: true,
+        state: "RESOLVED",
         message: "Student record and all associated history were permanently deleted.",
       });
       router.refresh();
@@ -98,7 +121,7 @@ export default function CommandBar() {
         method: (data.method as PaymentMethod) || PaymentMethod.UPI,
         status: PaymentStatus.PAID,
         billingPeriod: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
-        notes: String(data.notes || "Recorded via Gemini AI"),
+        notes: String(data.notes || "Recorded via TutorLedger AI"),
       });
 
       if (!res.ok) {
@@ -109,6 +132,7 @@ export default function CommandBar() {
       toast({ title: "Payment recorded", variant: "success" });
       setResult({
         ok: true,
+        state: "RESOLVED",
         message: `Successfully recorded payment of ₹${data.amount}.`,
       });
       router.refresh();
@@ -124,13 +148,13 @@ export default function CommandBar() {
     <div className="mt-6 mb-8 space-y-4">
       <form onSubmit={handleSubmit} className="relative flex items-center">
         <div className="absolute left-4 text-primary pointer-events-none">
-          <Sparkles className="size-5" />
+          <Sparkles className="size-5 animate-pulse" />
         </div>
 
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="✨ Ask AI: 'Took Rahul class today', 'Add student Priya', 'Record payment 2000'..."
+          placeholder="Ask TutorLedger anything… (e.g. 'Took Aahan class today', 'Who owes money?', 'Aahan paid 2k')"
           className="w-full rounded-2xl border border-input bg-card py-4 pl-12 pr-14 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20 shadow-card"
         />
 
@@ -144,41 +168,89 @@ export default function CommandBar() {
         </Button>
       </form>
 
-      {/* Quick Prompt Chips */}
-      <div className="flex flex-wrap items-center gap-2 text-xs">
-        <span className="text-muted-foreground font-medium">Try asking:</span>
-        {samplePrompts.map((p) => (
-          <button
-            key={p}
-            type="button"
-            onClick={() => {
-              setPrompt(p);
-            }}
-            className="rounded-lg border border-border/60 bg-muted/50 px-2.5 py-1 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
-          >
-            {p}
-          </button>
-        ))}
+      {/* Helper Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-muted-foreground font-medium">Try asking:</span>
+          {samplePrompts.map((p) => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => {
+                setPrompt(p);
+              }}
+              className="rounded-lg border border-border/60 bg-muted/50 px-2 py-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary transition-colors"
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+
+        <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
+          ✨ Powered by Gemini
+        </span>
       </div>
 
-      {/* AI Result Card */}
-      {result && (
-        <Card className={`border ${result.ok ? "border-primary/30 bg-primary/5" : "border-destructive/30 bg-destructive/5"} text-foreground shadow-lg transition-all`}>
+      {/* AI Processing Status */}
+      {isPending && (
+        <div className="flex items-center gap-2 text-xs text-primary font-medium animate-pulse px-1">
+          <Loader2 className="size-3.5 animate-spin" />
+          <span>Thinking & resolving request…</span>
+        </div>
+      )}
+
+      {/* AI Result & Clarification Card */}
+      {result && !isPending && (
+        <Card
+          className={`border ${
+            result.state === "RESOLVED"
+              ? "border-success/30 bg-success/5"
+              : result.state === "NEEDS_CLARIFICATION"
+              ? "border-primary/30 bg-primary/5"
+              : result.state === "REQUIRES_CONFIRMATION" || result.state === "REQUIRES_STRONG_CONFIRMATION"
+              ? "border-warning/30 bg-warning/5"
+              : "border-destructive/30 bg-destructive/5"
+          } text-foreground shadow-lg transition-all`}
+        >
           <CardContent className="flex flex-col gap-3 p-4 text-sm">
             <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-2">
-                {result.requiresConfirmation ? (
-                  <AlertTriangle className="size-5 text-warning shrink-0" />
-                ) : result.ok ? (
-                  <CheckCircle2 className="size-5 text-success shrink-0" />
+              <div className="flex items-start gap-2.5">
+                {result.state === "RESOLVED" ? (
+                  <CheckCircle2 className="size-5 text-success shrink-0 mt-0.5" />
+                ) : result.state === "NEEDS_CLARIFICATION" ? (
+                  <HelpCircle className="size-5 text-primary shrink-0 mt-0.5" />
+                ) : result.state === "REQUIRES_CONFIRMATION" || result.state === "REQUIRES_STRONG_CONFIRMATION" ? (
+                  <AlertTriangle className="size-5 text-warning shrink-0 mt-0.5" />
                 ) : (
-                  <XCircle className="size-5 text-destructive shrink-0" />
+                  <XCircle className="size-5 text-destructive shrink-0 mt-0.5" />
                 )}
                 <div>
-                  <p className="font-medium">{result.message}</p>
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-[10px] uppercase font-mono px-1.5 py-0 ${
+                        result.state === "RESOLVED"
+                          ? "border-success/30 text-success bg-success/10"
+                          : result.state === "NEEDS_CLARIFICATION"
+                          ? "border-primary/30 text-primary bg-primary/10"
+                          : "border-warning/30 text-warning bg-warning/10"
+                      }`}
+                    >
+                      {result.state === "NEEDS_CLARIFICATION"
+                        ? "Need a little more information"
+                        : result.state === "REQUIRES_CONFIRMATION" || result.state === "REQUIRES_STRONG_CONFIRMATION"
+                        ? "Please confirm"
+                        : result.state === "RESOLVED"
+                        ? "Done"
+                        : "Notice"}
+                    </Badge>
+                  </div>
+
+                  <p className="mt-1.5 font-medium leading-relaxed">{result.message}</p>
+
                   {result.llmUsed && (
-                    <p className="mt-1 text-[10px] font-mono text-primary/80">
-                      ✨ Powered by Gemini ({result.llmUsed})
+                    <p className="mt-1 text-[10px] font-mono text-muted-foreground">
+                      {result.llmUsed}
                     </p>
                   )}
                 </div>
@@ -187,12 +259,32 @@ export default function CommandBar() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs text-muted-foreground"
+                className="h-7 text-xs text-muted-foreground shrink-0"
                 onClick={() => setResult(null)}
               >
                 Dismiss
               </Button>
             </div>
+
+            {/* Interactive Clarification Option Chips */}
+            {result.requiresClarification && result.clarificationOptions && result.clarificationOptions.length > 0 && (
+              <div className="mt-2 pt-2 border-t border-border/40 space-y-2">
+                <p className="text-xs font-semibold text-primary">Select an option:</p>
+                <div className="flex flex-wrap gap-2">
+                  {result.clarificationOptions.map((option) => (
+                    <Button
+                      key={option}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => handleOptionSelect(option)}
+                      className="h-8 text-xs border-primary/30 bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-all"
+                    >
+                      {option}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Confirmation Card for Session Delete / Payment */}
             {result.requiresConfirmation && result.confirmationPayload && (

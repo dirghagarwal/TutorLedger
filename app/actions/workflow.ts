@@ -30,10 +30,18 @@ function errorMessage(error: unknown, fallback: string): string {
   return fallback;
 }
 
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Intentionally ignore CLI context missing static store
+  }
+}
+
 function revalidateWorkflow() {
-  revalidatePath("/");
-  revalidatePath("/calendar");
-  revalidatePath("/students");
+  safeRevalidate("/");
+  safeRevalidate("/calendar");
+  safeRevalidate("/students");
 }
 
 function calculateDurationMinutes(startedAt?: string | null, endedAt?: string | null): number | null {
@@ -91,7 +99,7 @@ export async function recordAttendance(input: unknown): Promise<AttendanceResult
     );
 
     revalidateWorkflow();
-    revalidatePath(`/students/${session.studentId}`);
+    safeRevalidate(`/students/${session.studentId}`);
     return { ok: true, attendance, session: updatedSession };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to record attendance.") };
@@ -146,7 +154,7 @@ export async function updateClassStatus(input: unknown): Promise<UpdateStatusRes
     );
 
     revalidateWorkflow();
-    if (updatedSession.studentId) revalidatePath(`/students/${updatedSession.studentId}`);
+    if (updatedSession.studentId) safeRevalidate(`/students/${updatedSession.studentId}`);
     return { ok: true, session: updatedSession, warning };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to update class status.") };
@@ -169,7 +177,7 @@ export async function recordPayment(input: unknown): Promise<PaymentResult> {
     }
 
     revalidateWorkflow();
-    revalidatePath(`/students/${payment.studentId}`);
+    safeRevalidate(`/students/${payment.studentId}`);
     return { ok: true, payment: verified };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to record payment.") };
