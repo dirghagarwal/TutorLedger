@@ -17,6 +17,18 @@ export async function findStudentById(id: string): Promise<Student | null> {
   return record ? toStudent(record) : null;
 }
 
+export async function findStudentByName(name: string): Promise<Student | null> {
+  const records = await prisma.student.findMany({
+    where: {
+      name: {
+        contains: name,
+        mode: "insensitive",
+      },
+    },
+  });
+  return records.length > 0 ? toStudent(records[0]) : null;
+}
+
 export async function createStudent(input: Student): Promise<Student> {
   const record = await prisma.student.create({ data: input });
   return toStudent(record);

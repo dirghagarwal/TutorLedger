@@ -7,6 +7,7 @@ export interface AttendanceSummary {
   absentClasses: number;
   cancelledClasses: number;
   rescheduledClasses: number;
+  totalClasses: number;
 }
 
 export async function getAttendanceForStudent(
@@ -32,23 +33,23 @@ export async function getAttendanceForSession(
 export function getAttendanceSummary(
   records: readonly Attendance[]
 ): AttendanceSummary {
-  return records.reduce<AttendanceSummary>(
-    (summary, record) => {
+  const summary = records.reduce<Omit<AttendanceSummary, "totalClasses">>(
+    (acc, record) => {
       switch (record.status) {
         case AttendanceStatus.PRESENT:
-          summary.attendedClasses += 1;
+          acc.attendedClasses += 1;
           break;
         case AttendanceStatus.ABSENT:
-          summary.absentClasses += 1;
+          acc.absentClasses += 1;
           break;
         case AttendanceStatus.CANCELLED:
-          summary.cancelledClasses += 1;
+          acc.cancelledClasses += 1;
           break;
         case AttendanceStatus.RESCHEDULED:
-          summary.rescheduledClasses += 1;
+          acc.rescheduledClasses += 1;
           break;
       }
-      return summary;
+      return acc;
     },
     {
       attendedClasses: 0,
@@ -57,6 +58,15 @@ export function getAttendanceSummary(
       rescheduledClasses: 0,
     }
   );
+
+  return {
+    ...summary,
+    totalClasses:
+      summary.attendedClasses +
+      summary.absentClasses +
+      summary.cancelledClasses +
+      summary.rescheduledClasses,
+  };
 }
 
 export function getAttendedClassCount(

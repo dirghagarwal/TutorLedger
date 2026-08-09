@@ -128,7 +128,7 @@ export default async function StudentProfilePage({
                 >
                   {student.active ? "Active" : "Archived"}
                 </Badge>
-                <StudentProfileActions student={student} />
+                <StudentProfileActions schedules={studentSchedules} student={student} />
               </div>
             </CardHeader>
             <CardContent className="grid gap-4 pt-6 sm:grid-cols-2">

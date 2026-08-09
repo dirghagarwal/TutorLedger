@@ -1,26 +1,48 @@
 "use client";
 
-import { Pencil } from "lucide-react";
+import { Calendar, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
+import ScheduleDialog from "@/components/students/ScheduleDialog";
 import type { Student } from "@/types/students";
+import type { Schedule } from "@/types/schedule";
 
-export default function StudentProfileActions({ student }: Readonly<{ student: Student }>) {
+export default function StudentProfileActions({
+  student,
+  schedules = [],
+}: Readonly<{
+  student: Student;
+  schedules?: Schedule[];
+}>) {
   const router = useRouter();
-  const [open, setOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   return (
-    <>
-      <Button size="sm" variant="outline" onClick={() => setOpen(true)}><Pencil /> Edit student</Button>
+    <div className="flex items-center gap-2">
+      <Button size="sm" variant="outline" onClick={() => setScheduleOpen(true)}>
+        <Calendar className="size-4" /> Schedule
+      </Button>
+      <Button size="sm" variant="outline" onClick={() => setEditOpen(true)}>
+        <Pencil className="size-4" /> Edit
+      </Button>
+
       <StudentFormDialog
-        onOpenChange={setOpen}
+        onOpenChange={setEditOpen}
         onSaved={() => router.refresh()}
-        open={open}
+        open={editOpen}
         student={student}
       />
-    </>
+
+      <ScheduleDialog
+        onOpenChange={setScheduleOpen}
+        open={scheduleOpen}
+        schedules={schedules}
+        student={student}
+      />
+    </div>
   );
 }

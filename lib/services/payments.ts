@@ -1,10 +1,11 @@
+import { findAttendance } from "@/lib/repositories/attendance";
 import { findPayments } from "@/lib/repositories/payments";
-import { findStudents } from "@/lib/repositories/students";
-import {
-  PaymentStatus,
-  type Payment,
-} from "@/types/payment";
-import type { Student } from "@/types/students";
+import { findSessions } from "@/lib/repositories/sessions";
+import { findStudentById, findStudents } from "@/lib/repositories/students";
+import { AttendanceStatus, type Attendance } from "@/types/attendance";
+import { PaymentStatus, type Payment } from "@/types/payment";
+import { FeeType, type Student } from "@/types/students";
+import type { Session } from "@/types/session";
 
 function isCollected(payment: Payment): boolean {
   return (
@@ -47,14 +48,50 @@ export async function getPaymentHistory(
 
 export async function getOutstandingBalance(
   studentId: string,
-  allPayments?: readonly Payment[]
+  allPayments?: readonly Payment[],
+  allStudents?: readonly Student[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[]
 ): Promise<number> {
   const records = await resolvePayments(allPayments);
-  return sumPayments(
+  const student = allStudents
+    ? allStudents.find((s) => s.id === studentId)
+    : await findStudentById(studentId);
+
+  const pendingPaymentsAmount = sumPayments(
     records.filter(
       (payment) =>
         payment.studentId === studentId && payment.status === PaymentStatus.PENDING
     )
+  );
+
+  if (!student) return pendingPaymentsAmount;
+
+  if (student.feeType === FeeType.CLASSWISE) {
+    const attendanceRecords = allAttendance ? [...allAttendance] : await findAttendance();
+    const sessions = allSessions ? [...allSessions] : await findSessions();
+
+    const studentSessionIds = new Set(
+      sessions.filter((s) => s.studentId === studentId).map((s) => s.id)
+    );
+
+    const attendedCount = attendanceRecords.filter(
+      (a) => studentSessionIds.has(a.sessionId) && a.status === AttendanceStatus.PRESENT
+    ).length;
+
+    const accruedFees = attendedCount * student.fee;
+    const paidFees = getRevenueByStudentSync(studentId, records);
+    const balanceFromAccrual = Math.max(0, accruedFees - paidFees);
+
+    return Math.max(balanceFromAccrual, pendingPaymentsAmount);
+  }
+
+  return pendingPaymentsAmount > 0 ? pendingPaymentsAmount : Math.max(0, student.fee - getRevenueByStudentSync(studentId, records));
+}
+
+function getRevenueByStudentSync(studentId: string, records: readonly Payment[]): number {
+  return sumPayments(
+    records.filter((p) => p.studentId === studentId && isCollected(p))
   );
 }
 
@@ -87,11 +124,7 @@ export async function getRevenueByStudent(
   allPayments?: readonly Payment[]
 ): Promise<number> {
   const records = await resolvePayments(allPayments);
-  return sumPayments(
-    records.filter(
-      (payment) => payment.studentId === studentId && isCollected(payment)
-    )
-  );
+  return getRevenueByStudentSync(studentId, records);
 }
 
 export async function getPendingStudents(
@@ -128,22 +161,22 @@ export async function getRecentPayment(
 
 export async function getTotalOutstandingBalance(
   allStudents?: readonly Student[],
-  allPayments?: readonly Payment[]
+  allPayments?: readonly Payment[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[]
 ): Promise<number> {
-  const [studentRecords, paymentRecords] = await Promise.all([
+  const [studentRecords, paymentRecords, sessionRecords, attendanceRecords] = await Promise.all([
     allStudents ? Promise.resolve([...allStudents]) : findStudents(),
     resolvePayments(allPayments),
+    allSessions ? Promise.resolve([...allSessions]) : findSessions(),
+    allAttendance ? Promise.resolve([...allAttendance]) : findAttendance(),
   ]);
-  return studentRecords.reduce(
-    (total, student) =>
-      total +
-      sumPayments(
-        paymentRecords.filter(
-          (payment) =>
-            payment.studentId === student.id &&
-            payment.status === PaymentStatus.PENDING
-        )
-      ),
-    0
+
+  const balances = await Promise.all(
+    studentRecords.map((student) =>
+      getOutstandingBalance(student.id, paymentRecords, studentRecords, sessionRecords, attendanceRecords)
+    )
   );
+
+  return balances.reduce((total, val) => total + val, 0);
 }
