@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { addSessionAttachment, addSessionNote } from "@/app/actions/sessions";
@@ -63,13 +63,21 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
   const { toast } = useToast();
   const router = useRouter();
 
-  const [prevRecordId, setPrevRecordId] = useState<string | null>(null);
+  const currentRecordId = record?.session.id;
+  const latestNote = record?.notes[0];
 
-  if (record?.session.id !== prevRecordId) {
-    setPrevRecordId(record?.session.id ?? null);
-    const latest = record?.notes[0];
-    setNote(latest ? { topic: latest.topic, classwork: latest.classwork, homework: latest.homework, remarks: latest.remarks } : { topic: "", classwork: "", homework: "", remarks: "" });
-  }
+  useEffect(() => {
+    if (latestNote) {
+      setNote({
+        topic: latestNote.topic,
+        classwork: latestNote.classwork,
+        homework: latestNote.homework,
+        remarks: latestNote.remarks,
+      });
+    } else {
+      setNote({ topic: "", classwork: "", homework: "", remarks: "" });
+    }
+  }, [currentRecordId, latestNote]);
 
   const currentAttendance = record?.attendance?.status ?? record?.session.status;
   const paymentHistory = useMemo(() => record?.payments ?? [], [record?.payments]);
