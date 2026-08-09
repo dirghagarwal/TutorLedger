@@ -9,8 +9,9 @@ import {
   recordAttendance,
   updateClassStatus,
 } from "@/app/actions/workflow";
-import { ensureSessionExists } from "@/lib/repositories/sessions";
+import { ensureSessionExists, findSessions } from "@/lib/repositories/sessions";
 import { findStudents } from "@/lib/repositories/students";
+import { generateConfirmationToken, logAiAuditTrail } from "@/lib/services/ai-safety";
 import {
   getPendingStudents,
   getRevenueThisMonth,
@@ -20,6 +21,14 @@ import { formatDisplayDate, getTodayDateKey, parseRelativeDate } from "@/lib/uti
 import { aiActionSchema } from "@/lib/validations/ai";
 import { SessionStatus } from "@/types/session";
 import type { Student } from "@/types/students";
+
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Intentionally ignore CLI context missing static store
+  }
+}
 
 export interface AiCommandResult {
   ok: boolean;
@@ -31,6 +40,8 @@ export interface AiCommandResult {
     action: string;
     studentId?: string;
     studentName?: string;
+    sessionId?: string;
+    token?: string;
     details?: string;
   };
   data?: Record<string, unknown>;
@@ -96,25 +107,30 @@ Today's date is ${todayKolkataDate} (Asia/Kolkata time zone).
 Available enrolled students in database:
 ${enrolledNamesList.length > 0 ? enrolledNamesList.map((n) => `- "${n}"`).join("\n") : "No enrolled students yet"}
 
+STRICT DELETION RULES (MANDATORY SEPARATION):
+1. Use "DELETE_SESSION" when user asks to delete, cancel, or remove a specific class, session, or lesson (e.g. "Delete Viraj's Wednesday class", "Remove yesterday's session").
+2. Use "DELETE_STUDENT_REQUEST" ONLY when user asks to delete an entire student profile or remove a student completely (e.g. "Delete Viraj & Vivaan", "Remove student Viraj").
+3. NEVER mix DELETE_SESSION and DELETE_STUDENT_REQUEST.
+
 STRICT ENTITY EXTRACTION RULES:
-1. Extract studentName ONLY if explicitly mentioned in the user's input.
+1. Extract studentName ONLY if explicitly mentioned in user input.
 2. NEVER invent a student name or use generic terms like "student", "the student", "user", "person", "someone".
 3. If student name is omitted, unspecified, or ambiguous, return studentName = null.
-4. For combined student names in database (e.g. "Aahan & Aalya"), match the combined name.
 
 STRICT DATE RULES:
-- If user mentions "today", "tomorrow", "yesterday", extract date as "today", "tomorrow", or "yesterday".
-- DO NOT invent arbitrary dates in the past (like 2026-07-27). Default date to "today".
+- Extract date reference as mentioned (e.g. "Wednesday", "last Wednesday", "today", "yesterday", "5 August", "2026-08-05").
+- DO NOT compute or alter calendar dates yourself.
 
 Action Intent Schema:
 - "QUERY_STATS": Asking about pending fees, revenue, or student list. Set topic to "PENDING_FEES", "REVENUE", or "STUDENT_LIST".
-- "RECORD_ATTENDANCE": Set studentName and status ("PRESENT", "ABSENT", "CANCELLED", "RESCHEDULED").
+- "RECORD_ATTENDANCE": Set studentName, status ("PRESENT", "ABSENT", "CANCELLED", "RESCHEDULED"), and date.
 - "RECORD_PAYMENT": Set studentName, amount (number), and optional method ("CASH", "UPI", "BANK_TRANSFER").
-- "START_CLASS": Set studentName.
-- "END_CLASS": Set studentName.
-- "ADD_SESSION_NOTE": Set studentName, and homework, classwork, topic, or remarks.
+- "START_CLASS": Set studentName and date.
+- "END_CLASS": Set studentName and date.
+- "ADD_SESSION_NOTE": Set studentName, date, and homework, classwork, topic, or remarks.
 - "CREATE_STUDENT": Set name, subject, fee (number), and feeType ("MONTHLY" or "CLASSWISE").
-- "DELETE_STUDENT_REQUEST": Set studentName when asked to delete/remove a student.`;
+- "DELETE_SESSION": Set studentName and date when deleting a specific class/session.
+- "DELETE_STUDENT_REQUEST": Set studentName when deleting an entire student record.`;
 
     const response = await model.generateContent([systemPrompt, `User command: "${trimmed}"`]);
     const text = response.response.text();
@@ -167,9 +183,9 @@ Action Intent Schema:
         return { ok: false, message: result.error, llmUsed: modelName };
       }
 
-      revalidatePath("/");
-      revalidatePath("/calendar");
-      revalidatePath(`/students/${student.id}`);
+      safeRevalidate("/");
+      safeRevalidate("/calendar");
+      safeRevalidate(`/students/${student.id}`);
       return {
         ok: true,
         actionType: "RECORD_ATTENDANCE",
@@ -192,8 +208,8 @@ Action Intent Schema:
         return { ok: false, message: result.error, llmUsed: modelName };
       }
 
-      revalidatePath("/students");
-      revalidatePath("/");
+      safeRevalidate("/students");
+      safeRevalidate("/");
       return {
         ok: true,
         actionType: "CREATE_STUDENT",
@@ -208,6 +224,7 @@ Action Intent Schema:
         return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
       }
       const student = studentRes.student;
+      const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_RECORD_PAYMENT" });
 
       return {
         ok: true,
@@ -218,6 +235,7 @@ Action Intent Schema:
           action: "CONFIRM_RECORD_PAYMENT",
           studentId: student.id,
           studentName: student.name,
+          token,
           details: `Amount: ₹${action.amount} · Method: ${action.method} · Notes: ${action.notes}`,
         },
         data: {
@@ -225,6 +243,62 @@ Action Intent Schema:
           amount: action.amount,
           method: action.method,
           notes: action.notes,
+          token,
+        },
+        llmUsed: modelName,
+      };
+    }
+
+    case "DELETE_SESSION": {
+      const studentRes = await resolveStudentEntity(action.studentName, enrolledStudents);
+      if (studentRes.type !== "SUCCESS") {
+        return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
+      }
+      const student = studentRes.student;
+      const targetDate = parseRelativeDate(action.date, trimmed);
+
+      const allSessions = await findSessions();
+      const matchingSessions = allSessions.filter(
+        (s) => s.studentId === student.id && s.date === targetDate
+      );
+
+      if (matchingSessions.length === 0) {
+        return {
+          ok: false,
+          message: `No matching class found for ${student.name} on ${formatDisplayDate(targetDate)} (${targetDate}). No data was modified.`,
+          llmUsed: modelName,
+        };
+      }
+
+      if (matchingSessions.length > 1) {
+        return {
+          ok: false,
+          requiresClarification: true,
+          message: `I found multiple classes for ${student.name} on ${formatDisplayDate(targetDate)}. Which one do you want to delete? Available sessions: ${matchingSessions.map((s) => `${s.startTime}–${s.endTime}`).join(", ")}.`,
+          llmUsed: modelName,
+        };
+      }
+
+      const session = matchingSessions[0]!;
+      const token = generateConfirmationToken({ studentId: student.id, sessionId: session.id, action: "CONFIRM_DELETE_SESSION" });
+
+      return {
+        ok: true,
+        requiresConfirmation: true,
+        actionType: "DELETE_SESSION",
+        message: `⚠️ Delete class for ${student.name} on ${formatDisplayDate(session.date)}?`,
+        confirmationPayload: {
+          action: "CONFIRM_DELETE_SESSION",
+          studentId: student.id,
+          studentName: student.name,
+          sessionId: session.id,
+          token,
+          details: `${student.name} · ${formatDisplayDate(session.date)} · ${session.startTime}–${session.endTime} (Deletes only this single class. Student & recurring schedule will remain).`,
+        },
+        data: {
+          sessionId: session.id,
+          studentId: student.id,
+          token,
         },
         llmUsed: modelName,
       };
@@ -255,13 +329,13 @@ Action Intent Schema:
 
       if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
 
-      revalidatePath("/");
-      revalidatePath("/calendar");
-      revalidatePath(`/students/${student.id}`);
+      safeRevalidate("/");
+      safeRevalidate("/calendar");
+      safeRevalidate(`/students/${student.id}`);
       return {
         ok: true,
         actionType: "START_CLASS",
-        message: `Started class for ${student.name} on ${session.date}. Status updated to IN_PROGRESS.`,
+        message: `Started class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to IN_PROGRESS.`,
         llmUsed: modelName,
       };
     }
@@ -291,13 +365,13 @@ Action Intent Schema:
 
       if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
 
-      revalidatePath("/");
-      revalidatePath("/calendar");
-      revalidatePath(`/students/${student.id}`);
+      safeRevalidate("/");
+      safeRevalidate("/calendar");
+      safeRevalidate(`/students/${student.id}`);
       return {
         ok: true,
         actionType: "END_CLASS",
-        message: `Ended class for ${student.name} on ${session.date}. Status updated to COMPLETED.`,
+        message: `Ended class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to COMPLETED.`,
         llmUsed: modelName,
       };
     }
@@ -328,12 +402,12 @@ Action Intent Schema:
 
       if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
 
-      revalidatePath(`/students/${student.id}`);
-      revalidatePath("/calendar");
+      safeRevalidate(`/students/${student.id}`);
+      safeRevalidate("/calendar");
       return {
         ok: true,
         actionType: "ADD_SESSION_NOTE",
-        message: `Saved session notes for ${student.name} on ${session.date}.`,
+        message: `Saved session notes for ${student.name} on ${formatDisplayDate(session.date)}.`,
         llmUsed: modelName,
       };
     }
@@ -377,17 +451,26 @@ Action Intent Schema:
         return { ok: false, requiresClarification: true, message: studentRes.message, llmUsed: modelName };
       }
       const student = studentRes.student;
+      const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_DELETE_STUDENT" });
+
+      logAiAuditTrail({
+        action: "DELETE_STUDENT_REQUEST",
+        studentId: student.id,
+        userPrompt: trimmed,
+        result: "REQUIRES_STRONG_CONFIRMATION: User must type DELETE <STUDENT_NAME> in modal",
+      });
 
       return {
         ok: true,
         requiresConfirmation: true,
         actionType: "DELETE_STUDENT_REQUEST",
-        message: `⚠️ Are you sure you want to delete student "${student.name}"? This action cannot be undone.`,
+        message: `🚨 PERMANENT STUDENT DELETION REQUESTED for "${student.name}". Strong confirmation required!`,
         confirmationPayload: {
           action: "CONFIRM_DELETE_STUDENT",
           studentId: student.id,
           studentName: student.name,
-          details: `Subject: ${student.subject} · Fee: ₹${student.fee} (${student.feeType})`,
+          token,
+          details: `Subject: ${student.subject} · Fee: ₹${student.fee} (${student.feeType}) · Deleting this student will permanently erase all associated schedules, sessions, notes, and payments.`,
         },
         llmUsed: modelName,
       };
@@ -492,6 +575,12 @@ function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
   let date = "today";
   if (lower.includes("tomorrow")) date = "tomorrow";
   if (lower.includes("yesterday")) date = "yesterday";
+
+  // STRICT SEPARATION FOR FALLBACK:
+  // If prompt explicitly mentions "class" or "session", fallback to DELETE_SESSION
+  if ((lower.includes("delete") || lower.includes("remove")) && (lower.includes("class") || lower.includes("session") || lower.includes("wednesday") || lower.includes("monday") || lower.includes("tuesday") || lower.includes("thursday") || lower.includes("friday") || lower.includes("saturday") || lower.includes("sunday"))) {
+    return { action: "DELETE_SESSION", studentName: matchedName, date: prompt };
+  }
 
   if (lower.includes("delete") || lower.includes("remove")) {
     return { action: "DELETE_STUDENT_REQUEST", studentName: matchedName };

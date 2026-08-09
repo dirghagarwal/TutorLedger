@@ -36,6 +36,12 @@ export const deleteStudentIntentSchema = z.object({
   studentName: z.string().nullable().optional(),
 });
 
+export const deleteSessionIntentSchema = z.object({
+  action: z.literal("DELETE_SESSION"),
+  studentName: z.string().nullable().optional(),
+  date: z.string().nullable().optional(),
+});
+
 export const startClassIntentSchema = z.object({
   action: z.literal("START_CLASS"),
   studentName: z.string().nullable().optional(),
@@ -61,6 +67,7 @@ export const aiActionSchema = z.discriminatedUnion("action", [
   recordPaymentIntentSchema,
   queryStatsIntentSchema,
   deleteStudentIntentSchema,
+  deleteSessionIntentSchema,
   startClassIntentSchema,
   endClassIntentSchema,
   addSessionNoteIntentSchema,
