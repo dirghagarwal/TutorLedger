@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { Sparkles, Send, Loader2, AlertTriangle, CheckCircle2, HelpCircle, XCircle, Trash2 } from "lucide-react";
 
-import { processAiCommand, type AiCommandResult, type ConversationMessage } from "@/app/actions/ai";
+import { processAiCommand, type AiCommandResult, type ConversationMessage, type ActiveSessionContext } from "@/app/actions/ai";
 import { deleteSessionAction } from "@/app/actions/sessions";
 import { deleteStudent } from "@/app/actions/students";
 import { recordPayment } from "@/app/actions/workflow";
@@ -30,8 +30,9 @@ export default function CommandBar() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AiCommandResult | null>(null);
 
-  // Short-lived conversational history
+  // Conversational History & Retained Active Session Context State
   const [history, setHistory] = useState<ConversationMessage[]>([]);
+  const [activeContext, setActiveContext] = useState<ActiveSessionContext | null>(null);
 
   // Strong Student Deletion State
   const [strongDeleteStudent, setStrongDeleteStudent] = useState<{
@@ -48,8 +49,12 @@ export default function CommandBar() {
     const newHistory: ConversationMessage[] = [...history, { role: "user", content: inputPrompt }];
 
     startTransition(async () => {
-      const res = await processAiCommand(inputPrompt, newHistory);
+      const res = await processAiCommand(inputPrompt, newHistory, activeContext);
       setResult(res);
+
+      if (res.activeContext !== undefined) {
+        setActiveContext(res.activeContext);
+      }
 
       if (res.ok && res.state === "RESOLVED") {
         toast({ title: "AI Command Executed", variant: "success" });
@@ -82,10 +87,12 @@ export default function CommandBar() {
       }
 
       toast({ title: "Class deleted", description: "This single class was deleted. Student and recurring schedule remain intact.", variant: "success" });
+      setActiveContext(null);
       setResult({
         ok: true,
         state: "RESOLVED",
         message: "Successfully deleted single class. Student profile and recurring schedule are preserved.",
+        activeContext: null,
       });
       router.refresh();
     });
@@ -102,10 +109,12 @@ export default function CommandBar() {
       toast({ title: "Student permanently deleted", variant: "success" });
       setStrongDeleteStudent(null);
       setTypedConfirmName("");
+      setActiveContext(null);
       setResult({
         ok: true,
         state: "RESOLVED",
         message: "Student record and all associated history were permanently deleted.",
+        activeContext: null,
       });
       router.refresh();
     });
@@ -134,6 +143,7 @@ export default function CommandBar() {
         ok: true,
         state: "RESOLVED",
         message: `Successfully recorded payment of ₹${data.amount}.`,
+        activeContext,
       });
       router.refresh();
     });
@@ -168,7 +178,7 @@ export default function CommandBar() {
         </Button>
       </form>
 
-      {/* Helper Bar */}
+      {/* Helper Bar & Active Context Indicator */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-muted-foreground font-medium">Try asking:</span>
@@ -186,9 +196,16 @@ export default function CommandBar() {
           ))}
         </div>
 
-        <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
-          ✨ Powered by Gemini
-        </span>
+        <div className="flex items-center gap-2">
+          {activeContext && (
+            <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
+              Target: {activeContext.studentName} ({activeContext.date})
+            </Badge>
+          )}
+          <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
+            ✨ Powered by Gemini
+          </span>
+        </div>
       </div>
 
       {/* AI Processing Status */}

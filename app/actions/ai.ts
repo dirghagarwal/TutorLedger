@@ -33,6 +33,14 @@ function safeRevalidate(path: string) {
   }
 }
 
+export interface ActiveSessionContext {
+  studentId: string;
+  studentName: string;
+  sessionId: string;
+  date: string;
+  scheduleId: string;
+}
+
 export interface AiCommandResult {
   ok: boolean;
   message: string;
@@ -49,6 +57,7 @@ export interface AiCommandResult {
     token?: string;
     details?: string;
   };
+  activeContext?: ActiveSessionContext | null;
   data?: Record<string, unknown>;
   llmUsed?: string;
 }
@@ -60,11 +69,12 @@ export interface ConversationMessage {
 
 export async function processAiCommand(
   prompt: string,
-  history: ConversationMessage[] = []
+  history: ConversationMessage[] = [],
+  activeContext?: ActiveSessionContext | null
 ): Promise<AiCommandResult> {
   const trimmed = prompt.trim();
   if (!trimmed) {
-    return { ok: false, message: "Please enter a prompt or question." };
+    return { ok: false, message: "Please enter a prompt or question.", activeContext };
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
@@ -72,6 +82,7 @@ export async function processAiCommand(
     return {
       ok: false,
       message: "GEMINI_API_KEY is not configured in server environment.",
+      activeContext,
     };
   }
 
@@ -116,6 +127,8 @@ export async function processAiCommand(
     const systemPrompt = `You are TutorLedger's intelligent conversational assistant AI.
 Today's date is ${todayKolkataDate} (Asia/Kolkata time zone).
 
+Active Session Context: ${activeContext ? `Student: "${activeContext.studentName}" (ID: ${activeContext.studentId}), Session Date: ${activeContext.date}` : "None"}
+
 Enrolled students in database:
 ${enrolledNamesList.length > 0 ? enrolledNamesList.map((n) => `- "${n}"`).join("\n") : "No enrolled students yet"}
 
@@ -145,28 +158,38 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
     modelName = "gemini-1.5-flash-latest (nlp-fallback)";
   }
 
-  // Handle Intent Actions
+  // Handle Action Intents using Context Priority Architecture
   switch (semanticOutput.action) {
     case "RECORD_ATTENDANCE": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
-      const student = studentRes.student;
-      const status = semanticOutput.status ?? "PRESENT";
-      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
 
-      const session = await ensureSessionExists({
-        studentId: student.id,
-        date: targetDate,
-      });
+      const student = studentRes.student;
+      const targetDate = resolveDateWithContextPriority(
+        semanticOutput.dateReference,
+        trimmed,
+        activeContext,
+        studentRes.isStudentSwitch
+      );
+
+      const status = semanticOutput.status ?? AttendanceStatus.PRESENT;
+      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
 
       const result = await recordAttendance({
         sessionId: session.id,
@@ -180,8 +203,16 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       });
 
       if (!result.ok) {
-        return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+        return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
       }
+
+      const newContext: ActiveSessionContext = {
+        studentId: student.id,
+        studentName: student.name,
+        sessionId: session.id,
+        date: session.date,
+        scheduleId: session.scheduleId,
+      };
 
       safeRevalidate("/");
       safeRevalidate("/calendar");
@@ -191,6 +222,70 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "RESOLVED",
         actionType: "RECORD_ATTENDANCE",
         message: `Marked ${student.name} ${status} for ${formatDisplayDate(session.date)}.`,
+        activeContext: newContext,
+        llmUsed: modelName,
+      };
+    }
+
+    case "ADD_SESSION_NOTE": {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: "Which class or student should I add this note/homework to?",
+          clarificationOptions: studentRes.options,
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
+
+      const student = studentRes.student;
+      const targetDate = resolveDateWithContextPriority(
+        semanticOutput.dateReference,
+        trimmed,
+        activeContext,
+        studentRes.isStudentSwitch
+      );
+
+      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+
+      const result = await addSessionNote({
+        sessionId: session.id,
+        studentId: student.id,
+        scheduleId: session.scheduleId,
+        date: session.date,
+        topic: semanticOutput.topic || "Tuition Session Notes",
+        classwork: semanticOutput.classwork || "",
+        homework: semanticOutput.homework || "",
+        remarks: semanticOutput.remarks || "",
+      });
+
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
+
+      const newContext: ActiveSessionContext = {
+        studentId: student.id,
+        studentName: student.name,
+        sessionId: session.id,
+        date: session.date,
+        scheduleId: session.scheduleId,
+      };
+
+      safeRevalidate(`/students/${student.id}`);
+      safeRevalidate("/calendar");
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "ADD_SESSION_NOTE",
+        message: `Saved notes/homework for ${student.name} on ${formatDisplayDate(session.date)}.`,
+        activeContext: newContext,
         llmUsed: modelName,
       };
     }
@@ -202,6 +297,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: "Please specify the new student's name, subject, and fee (e.g. 'Add student Priya Physics 1500 monthly').",
+          activeContext,
           llmUsed: modelName,
         };
       }
@@ -216,7 +312,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       });
 
       if (!result.ok) {
-        return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+        return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
       }
 
       safeRevalidate("/students");
@@ -226,25 +322,34 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "RESOLVED",
         actionType: "CREATE_STUDENT",
         message: `Successfully enrolled student ${semanticOutput.name} (${semanticOutput.subject}) with ₹${semanticOutput.fee} fee.`,
+        activeContext: null,
         llmUsed: modelName,
       };
     }
 
     case "RECORD_PAYMENT": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
+
       const student = studentRes.student;
       const amount = semanticOutput.amount || 1000;
-      const method = semanticOutput.method || "UPI";
+      const method = semanticOutput.method || PaymentMethod.UPI;
 
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_RECORD_PAYMENT" });
 
@@ -268,24 +373,38 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           notes: "Recorded via TutorLedger AI",
           token,
         },
+        activeContext,
         llmUsed: modelName,
       };
     }
 
     case "DELETE_SESSION": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
+
       const student = studentRes.student;
-      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
+      const targetDate = resolveDateWithContextPriority(
+        semanticOutput.dateReference,
+        trimmed,
+        activeContext,
+        studentRes.isStudentSwitch
+      );
 
       const allSessions = await findSessions();
       const matchingSessions = allSessions.filter(
@@ -297,6 +416,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           ok: false,
           state: "BLOCKED",
           message: `No matching class found for ${student.name} on ${formatDisplayDate(targetDate)} (${targetDate}). No data was modified.`,
+          activeContext,
           llmUsed: modelName,
         };
       }
@@ -308,6 +428,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           requiresClarification: true,
           message: `I found multiple classes for ${student.name} on ${formatDisplayDate(targetDate)}. Which class time do you want to delete?`,
           clarificationOptions: matchingSessions.map((s) => `${s.startTime}–${s.endTime}`),
+          activeContext,
           llmUsed: modelName,
         };
       }
@@ -334,22 +455,31 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           studentId: student.id,
           token,
         },
+        activeContext,
         llmUsed: modelName,
       };
     }
 
     case "DELETE_STUDENT_REQUEST": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
+
       const student = studentRes.student;
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_DELETE_STUDENT" });
 
@@ -373,22 +503,31 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           token,
           details: `Subject: ${student.subject} · Fee: ₹${student.fee} (${student.feeType}) · Deleting this student will permanently erase all associated schedules, sessions, notes, and payments.`,
         },
+        activeContext,
         llmUsed: modelName,
       };
     }
 
     case "START_CLASS": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
+
       const student = studentRes.student;
       const targetDate = getTodayDateKey();
       const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
@@ -403,7 +542,15 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         endTime: session.endTime,
       });
 
-      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
+
+      const newContext: ActiveSessionContext = {
+        studentId: student.id,
+        studentName: student.name,
+        sessionId: session.id,
+        date: session.date,
+        scheduleId: session.scheduleId,
+      };
 
       safeRevalidate("/");
       safeRevalidate("/calendar");
@@ -413,22 +560,31 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "RESOLVED",
         actionType: "START_CLASS",
         message: `Started class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to IN_PROGRESS.`,
+        activeContext: newContext,
         llmUsed: modelName,
       };
     }
 
     case "END_CLASS": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
         return {
           ok: false,
           state: "NEEDS_CLARIFICATION",
           requiresClarification: true,
           message: studentRes.message,
           clarificationOptions: studentRes.options,
+          activeContext,
           llmUsed: modelName,
         };
       }
+
       const student = studentRes.student;
       const targetDate = getTodayDateKey();
       const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
@@ -443,7 +599,15 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         endTime: session.endTime,
       });
 
-      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
+      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
+
+      const newContext: ActiveSessionContext = {
+        studentId: student.id,
+        studentName: student.name,
+        sessionId: session.id,
+        date: session.date,
+        scheduleId: session.scheduleId,
+      };
 
       safeRevalidate("/");
       safeRevalidate("/calendar");
@@ -453,46 +617,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "RESOLVED",
         actionType: "END_CLASS",
         message: `Ended class for ${student.name} on ${formatDisplayDate(session.date)}. Status updated to COMPLETED.`,
-        llmUsed: modelName,
-      };
-    }
-
-    case "ADD_SESSION_NOTE": {
-      const studentRes = await resolveStudentEntity(semanticOutput.studentReference, enrolledStudents, history);
-      if (studentRes.type !== "SUCCESS") {
-        return {
-          ok: false,
-          state: "NEEDS_CLARIFICATION",
-          requiresClarification: true,
-          message: studentRes.message,
-          clarificationOptions: studentRes.options,
-          llmUsed: modelName,
-        };
-      }
-      const student = studentRes.student;
-      const targetDate = parseRelativeDate(semanticOutput.dateReference, trimmed);
-      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
-
-      const result = await addSessionNote({
-        sessionId: session.id,
-        studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
-        topic: semanticOutput.topic || "Tuition Session Notes",
-        classwork: semanticOutput.classwork || "",
-        homework: semanticOutput.homework || "",
-        remarks: semanticOutput.remarks || "",
-      });
-
-      if (!result.ok) return { ok: false, state: "BLOCKED", message: result.error, llmUsed: modelName };
-
-      safeRevalidate(`/students/${student.id}`);
-      safeRevalidate("/calendar");
-      return {
-        ok: true,
-        state: "RESOLVED",
-        actionType: "ADD_SESSION_NOTE",
-        message: `Saved notes/homework for ${student.name} on ${formatDisplayDate(session.date)}.`,
+        activeContext: newContext,
         llmUsed: modelName,
       };
     }
@@ -509,6 +634,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           state: "RESOLVED",
           actionType: "QUERY_STATS",
           message: `Total pending fees: ₹${totalPending.toLocaleString("en-IN")}.${names ? ` Students with pending fees: ${names}.` : " No students currently have pending fees."}`,
+          activeContext,
           llmUsed: modelName,
         };
       }
@@ -520,6 +646,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           state: "RESOLVED",
           actionType: "QUERY_STATS",
           message: `Total revenue collected this month: ₹${revenue.toLocaleString("en-IN")}.`,
+          activeContext,
           llmUsed: modelName,
         };
       }
@@ -529,6 +656,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "RESOLVED",
         actionType: "QUERY_STATS",
         message: `You currently have ${enrolledStudents.length} active students enrolled: ${enrolledStudents.map((s) => s.name).join(", ")}.`,
+        activeContext,
         llmUsed: modelName,
       };
     }
@@ -538,10 +666,79 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         ok: true,
         state: "RESOLVED",
         message: "I understood your message. How else can I assist with TutorLedger?",
+        activeContext,
         llmUsed: modelName,
       };
     }
   }
+}
+
+async function resolveStudentWithContextPriority(
+  studentRef: string | null | undefined,
+  enrolledStudents: Student[],
+  history: ConversationMessage[],
+  activeContext?: ActiveSessionContext | null
+): Promise<{ student: Student | null; isStudentSwitch: boolean; message: string; options: string[] }> {
+  const options = enrolledStudents.map((s) => s.name);
+
+  // Priority 1: Explicit student reference in prompt
+  if (studentRef && !isGenericName(studentRef)) {
+    const res = await resolveStudentEntity(studentRef, enrolledStudents, history);
+    if (res.type === "SUCCESS") {
+      const isSwitch = Boolean(activeContext && activeContext.studentId !== res.student.id);
+      return { student: res.student, isStudentSwitch: isSwitch, message: "", options };
+    }
+    return { student: null, isStudentSwitch: false, message: res.message, options: res.options };
+  }
+
+  // Priority 2: Retained Active Session Context
+  if (activeContext?.studentId) {
+    const student = enrolledStudents.find((s) => s.id === activeContext.studentId);
+    if (student) {
+      return { student, isStudentSwitch: false, message: "", options };
+    }
+  }
+
+  // Priority 3: Recent conversation history
+  const historyRes = await resolveStudentEntity(null, enrolledStudents, history);
+  if (historyRes.type === "SUCCESS") {
+    const isSwitch = Boolean(activeContext && activeContext.studentId !== historyRes.student.id);
+    return { student: historyRes.student, isStudentSwitch: isSwitch, message: "", options };
+  }
+
+  return {
+    student: null,
+    isStudentSwitch: false,
+    message: "Which student did you mean? Select one below:",
+    options,
+  };
+}
+
+function resolveDateWithContextPriority(
+  dateRef: string | null | undefined,
+  fullPrompt: string,
+  activeContext?: ActiveSessionContext | null,
+  isStudentSwitch: boolean = false
+): string {
+  const normPrompt = fullPrompt.toLowerCase();
+  const hasExplicitToday = normPrompt.includes("today");
+
+  // Priority 1: Explicit date in current prompt
+  if (dateRef && dateRef !== "today") {
+    return parseRelativeDate(dateRef, fullPrompt);
+  }
+
+  if (hasExplicitToday) {
+    return getTodayDateKey();
+  }
+
+  // Priority 2: Active Session Context (unless student was explicitly switched)
+  if (!isStudentSwitch && activeContext?.date) {
+    return activeContext.date;
+  }
+
+  // Default: Today's date
+  return getTodayDateKey();
 }
 
 export type EntityResult =
@@ -584,7 +781,7 @@ export async function resolveStudentEntity(
 
   const normRaw = normalizeName(effectiveName);
 
-  // 1. Exact normalized match (case-insensitive & whitespace collapse)
+  // 1. Exact normalized match
   const exactMatch = enrolledStudents.find(
     (s) => normalizeName(s.name) === normRaw
   );
@@ -592,7 +789,7 @@ export async function resolveStudentEntity(
     return { type: "SUCCESS", student: exactMatch };
   }
 
-  // 2. Substring & word matches (ignoring generic conjunctions)
+  // 2. Substring & word matches
   const matches = enrolledStudents.filter((s) => {
     const normStudent = normalizeName(s.name);
     if (normStudent === normRaw) return true;
@@ -664,7 +861,6 @@ function parsePromptFallback(
 ): AiSemanticOutput {
   const lower = prompt.toLowerCase();
 
-  // Extract student from prompt or carry over from recent conversation history
   let matchedName = enrolledNames.find((n) => {
     const parts = normalizeName(n).split(/\s+and\s+|\s+/);
     return parts.some((p) => p.length >= 3 && lower.includes(p));
@@ -695,7 +891,7 @@ function parsePromptFallback(
     }
   }
 
-  let dateReference = "today";
+  let dateReference: string | null = null;
   if (lower.includes("tomorrow")) dateReference = "tomorrow";
   if (lower.includes("yesterday")) dateReference = "yesterday";
 
@@ -708,20 +904,23 @@ function parsePromptFallback(
   }
 
   if (lower.includes("start")) {
-    return { action: "START_CLASS", studentReference: matchedName, dateReference };
+    return { action: "START_CLASS", studentReference: matchedName, dateReference: dateReference || "today" };
   }
 
   if (lower.includes("end") || lower.includes("finish")) {
-    return { action: "END_CLASS", studentReference: matchedName, dateReference };
+    return { action: "END_CLASS", studentReference: matchedName, dateReference: dateReference || "today" };
   }
 
-  if (lower.includes("homework") || lower.includes("classwork") || lower.includes("topic") || lower.includes("note")) {
+  if (lower.includes("homework") || lower.includes("classwork") || lower.includes("topic") || lower.includes("note") || lower.includes("remark")) {
     const hwMatch = prompt.match(/(?:homework|hw):\s*(.+)/i);
+    const remarkMatch = prompt.match(/(?:remarks?|note):\s*(.+)/i);
     return {
       action: "ADD_SESSION_NOTE",
       studentReference: matchedName,
       dateReference,
-      homework: hwMatch?.[1] || prompt,
+      homework: hwMatch?.[1] || (lower.includes("homework") ? prompt : undefined),
+      remarks: remarkMatch?.[1] || (lower.includes("remark") ? prompt : undefined),
+      topic: lower.includes("topic") ? prompt : undefined,
     };
   }
 
@@ -743,7 +942,7 @@ function parsePromptFallback(
       studentReference: matchedName,
       amount,
       method: PaymentMethod.UPI,
-      dateReference,
+      dateReference: dateReference || "today",
     };
   }
 
