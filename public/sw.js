@@ -1,4 +1,4 @@
-const CACHE_NAME = "tutorledger-v2";
+const CACHE_NAME = "tutorledger-v3";
 const APP_SHELL = ["/", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
@@ -29,16 +29,11 @@ self.addEventListener("fetch", (event) => {
     (event.request.headers.get("accept") || "").includes("text/html");
 
   if (isNavigation) {
+    // Network-First for HTML navigation without storing stale HTML copies
     event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          if (response.ok) {
-            const copy = response.clone();
-            void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
-          }
-          return response;
-        })
-        .catch(() => caches.match(event.request).then((cached) => cached || caches.match("/")))
+      fetch(event.request).catch(() =>
+        caches.match(event.request).then((cached) => cached || caches.match("/"))
+      )
     );
     return;
   }
