@@ -5,25 +5,25 @@ import { FeeType } from "@/types/students";
 
 export const recordAttendanceIntentSchema = z.object({
   action: z.literal("RECORD_ATTENDANCE"),
-  studentName: z.string().min(1),
-  status: z.nativeEnum(AttendanceStatus),
+  studentName: z.string().nullable().optional(),
+  status: z.nativeEnum(AttendanceStatus).optional().default(AttendanceStatus.PRESENT),
   date: z.string().optional(),
 });
 
 export const createStudentIntentSchema = z.object({
   action: z.literal("CREATE_STUDENT"),
-  name: z.string().min(1),
-  subject: z.string().min(1),
-  fee: z.number().positive(),
+  name: z.string().min(1, "Student name is required"),
+  subject: z.string().min(1, "Subject is required"),
+  fee: z.number().positive("Fee must be positive"),
   feeType: z.nativeEnum(FeeType),
 });
 
 export const recordPaymentIntentSchema = z.object({
   action: z.literal("RECORD_PAYMENT"),
-  studentName: z.string().min(1),
-  amount: z.number().positive(),
+  studentName: z.string().nullable().optional(),
+  amount: z.number().positive("Amount must be positive"),
   method: z.nativeEnum(PaymentMethod).optional().default(PaymentMethod.UPI),
-  notes: z.string().optional().default("Recorded via AI Command"),
+  notes: z.string().optional().default("Recorded via Gemini AI"),
 });
 
 export const queryStatsIntentSchema = z.object({
@@ -33,22 +33,22 @@ export const queryStatsIntentSchema = z.object({
 
 export const deleteStudentIntentSchema = z.object({
   action: z.literal("DELETE_STUDENT_REQUEST"),
-  studentName: z.string().min(1),
+  studentName: z.string().nullable().optional(),
 });
 
 export const startClassIntentSchema = z.object({
   action: z.literal("START_CLASS"),
-  studentName: z.string().min(1),
+  studentName: z.string().nullable().optional(),
 });
 
 export const endClassIntentSchema = z.object({
   action: z.literal("END_CLASS"),
-  studentName: z.string().min(1),
+  studentName: z.string().nullable().optional(),
 });
 
 export const addSessionNoteIntentSchema = z.object({
   action: z.literal("ADD_SESSION_NOTE"),
-  studentName: z.string().min(1),
+  studentName: z.string().nullable().optional(),
   topic: z.string().optional(),
   classwork: z.string().optional(),
   homework: z.string().optional(),

@@ -18,6 +18,9 @@ const samplePrompts = [
   "Delete student Test",
 ];
 
+import { recordPayment } from "@/app/actions/workflow";
+import { PaymentMethod, PaymentStatus } from "@/types/payment";
+
 export default function CommandBar() {
   const router = useRouter();
   const { toast } = useToast();
@@ -52,6 +55,34 @@ export default function CommandBar() {
       setResult({
         ok: true,
         message: "Student record was successfully deleted.",
+      });
+      router.refresh();
+    });
+  }
+
+  async function handleConfirmPayment(data: Record<string, unknown>) {
+    startTransition(async () => {
+      const today = new Date().toISOString().slice(0, 10);
+      const res = await recordPayment({
+        studentId: String(data.studentId),
+        amount: Number(data.amount),
+        date: today,
+        method: (data.method as PaymentMethod) || PaymentMethod.UPI,
+        status: PaymentStatus.PAID,
+        billingPeriod: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+        notes: String(data.notes || "Recorded via Gemini AI"),
+      });
+
+      if (!result) return;
+      if (!res.ok) {
+        toast({ title: "Payment recording failed", description: res.error, variant: "error" });
+        return;
+      }
+
+      toast({ title: "Payment recorded", variant: "success" });
+      setResult({
+        ok: true,
+        message: `Successfully recorded payment of ₹${data.amount}.`,
       });
       router.refresh();
     });
@@ -131,7 +162,7 @@ export default function CommandBar() {
               </Button>
             </div>
 
-            {/* Confirmation Card for Destructive Actions */}
+            {/* Confirmation Card for Destructive & Financial Actions */}
             {result.requiresConfirmation && result.confirmationPayload?.studentId && (
               <div className="mt-2 rounded-xl border border-warning/30 bg-warning/10 p-3 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
                 <div>
@@ -151,15 +182,27 @@ export default function CommandBar() {
                   >
                     Cancel
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    disabled={isPending}
-                    onClick={() => handleConfirmDelete(result.confirmationPayload!.studentId!)}
-                    className="h-8 text-xs"
-                  >
-                    {isPending ? <Loader2 className="size-3 animate-spin" /> : "Confirm Delete"}
-                  </Button>
+                  {result.confirmationPayload.action === "CONFIRM_DELETE_STUDENT" ? (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      disabled={isPending}
+                      onClick={() => handleConfirmDelete(result.confirmationPayload!.studentId!)}
+                      className="h-8 text-xs"
+                    >
+                      {isPending ? <Loader2 className="size-3 animate-spin" /> : "Confirm Delete"}
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="default"
+                      disabled={isPending}
+                      onClick={() => handleConfirmPayment(result.data!)}
+                      className="h-8 text-xs bg-success text-success-foreground hover:bg-success/90"
+                    >
+                      {isPending ? <Loader2 className="size-3 animate-spin" /> : "Confirm Payment"}
+                    </Button>
+                  )}
                 </div>
               </div>
             )}
