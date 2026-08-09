@@ -16,7 +16,7 @@ import {
   getRevenueThisMonth,
   getTotalOutstandingBalance,
 } from "@/lib/services/payments";
-import { getTodayDateKey, parseRelativeDate } from "@/lib/utils/date";
+import { formatDisplayDate, getTodayDateKey, parseRelativeDate } from "@/lib/utils/date";
 import { aiActionSchema } from "@/lib/validations/ai";
 import { SessionStatus } from "@/types/session";
 import type { Student } from "@/types/students";
@@ -146,7 +146,7 @@ Action Intent Schema:
       }
       const student = studentRes.student;
 
-      const targetDate = parseRelativeDate(action.date);
+      const targetDate = parseRelativeDate(action.date, trimmed);
       const session = await ensureSessionExists({
         studentId: student.id,
         date: targetDate,
@@ -173,7 +173,7 @@ Action Intent Schema:
       return {
         ok: true,
         actionType: "RECORD_ATTENDANCE",
-        message: `Marked ${student.name} ${action.status} for session on ${session.date}.`,
+        message: `Marked ${student.name} ${action.status} for ${formatDisplayDate(session.date)}.`,
         llmUsed: modelName,
       };
     }
