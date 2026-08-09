@@ -36,12 +36,34 @@ export const deleteStudentIntentSchema = z.object({
   studentName: z.string().min(1),
 });
 
+export const startClassIntentSchema = z.object({
+  action: z.literal("START_CLASS"),
+  studentName: z.string().min(1),
+});
+
+export const endClassIntentSchema = z.object({
+  action: z.literal("END_CLASS"),
+  studentName: z.string().min(1),
+});
+
+export const addSessionNoteIntentSchema = z.object({
+  action: z.literal("ADD_SESSION_NOTE"),
+  studentName: z.string().min(1),
+  topic: z.string().optional(),
+  classwork: z.string().optional(),
+  homework: z.string().optional(),
+  remarks: z.string().optional(),
+});
+
 export const aiActionSchema = z.discriminatedUnion("action", [
   recordAttendanceIntentSchema,
   createStudentIntentSchema,
   recordPaymentIntentSchema,
   queryStatsIntentSchema,
   deleteStudentIntentSchema,
+  startClassIntentSchema,
+  endClassIntentSchema,
+  addSessionNoteIntentSchema,
 ]);
 
 export type AiAction = z.infer<typeof aiActionSchema>;

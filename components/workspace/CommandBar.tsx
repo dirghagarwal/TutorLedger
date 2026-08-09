@@ -111,7 +111,14 @@ export default function CommandBar() {
                 ) : (
                   <XCircle className="size-5 text-destructive shrink-0" />
                 )}
-                <p className="font-medium">{result.message}</p>
+                <div>
+                  <p className="font-medium">{result.message}</p>
+                  {result.llmUsed && (
+                    <p className="mt-1 text-[10px] font-mono text-primary/80">
+                      ✨ Powered by Gemini ({result.llmUsed})
+                    </p>
+                  )}
+                </div>
               </div>
 
               <Button
