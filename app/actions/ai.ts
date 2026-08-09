@@ -661,6 +661,52 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       };
     }
 
+    case "CONTEXT_SWITCH": {
+      const studentRes = await resolveStudentWithContextPriority(
+        semanticOutput.studentReference,
+        enrolledStudents,
+        history,
+        activeContext
+      );
+
+      if (!studentRes.student) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: studentRes.message,
+          clarificationOptions: studentRes.options,
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
+
+      const student = studentRes.student;
+      const newContext: ActiveSessionContext = {
+        studentId: student.id,
+        studentName: student.name,
+        sessionId: "",
+        date: activeContext?.date || getTodayDateKey(),
+        scheduleId: "",
+      };
+
+      logAiAuditTrail({
+        action: "CONTEXT_SWITCH",
+        studentId: student.id,
+        userPrompt: trimmed,
+        result: `SUCCESS: Context switched to student ${student.name}. Zero DB mutations performed.`,
+      });
+
+      return {
+        ok: true,
+        state: "RESOLVED",
+        actionType: "CONTEXT_SWITCH",
+        message: `Got it — I'll use ${student.name} for your next action.`,
+        activeContext: newContext,
+        llmUsed: modelName,
+      };
+    }
+
     default: {
       return {
         ok: true,
@@ -872,6 +918,35 @@ function parsePromptFallback(
       const parts = normalizeName(n).split(/\s+and\s+|\s+/);
       return parts.some((p) => p.length >= 3 && lastUserMsg.includes(p));
     }) ?? null;
+  }
+
+  const isCorrectionPhrase =
+    lower.includes("actually") ||
+    lower.includes("meant") ||
+    lower.includes("instead") ||
+    lower.includes("wrong student") ||
+    lower.includes("no,") ||
+    lower.includes("sorry");
+
+  const hasActionVerb =
+    lower.includes("took") ||
+    lower.includes("mark") ||
+    lower.includes("add") ||
+    lower.includes("start") ||
+    lower.includes("end") ||
+    lower.includes("delete") ||
+    lower.includes("remove") ||
+    lower.includes("paid") ||
+    lower.includes("payment") ||
+    lower.includes("homework") ||
+    lower.includes("remark") ||
+    lower.includes("classwork");
+
+  if (isCorrectionPhrase && !hasActionVerb && matchedName) {
+    return {
+      action: "CONTEXT_SWITCH",
+      studentReference: matchedName,
+    };
   }
 
   // Handle follow-up date corrections like "Actually Wednesday"

@@ -15,6 +15,7 @@ export const aiSemanticOutputSchema = z.object({
     "DELETE_STUDENT_REQUEST",
     "QUERY_STATS",
     "CORRECTION",
+    "CONTEXT_SWITCH",
     "CLARIFY",
   ]),
   studentReference: z.string().nullable().optional(),
