@@ -51,23 +51,32 @@ export default async function CalendarPage({ searchParams }: PageProps<"/calenda
       { name: student.name, color: student.color },
     ])
   );
-  const attendanceBySession = Object.fromEntries(
-    attendance.map((record: Attendance) => [record.sessionId, record])
-  );
+
+  const attendanceBySession: Record<string, Attendance> = {};
+  attendance.forEach((rec) => {
+    if (rec.sessionId) attendanceBySession[rec.sessionId] = rec;
+  });
 
   const detailsById: Record<string, SessionDetailsRecord> = Object.fromEntries(
-    monthSessions.map((session) => [
-      session.id,
-      {
-        session,
-        studentName: studentsById[session.studentId]?.name ?? "Unknown student",
-        studentColor: studentsById[session.studentId]?.color ?? "var(--avatar-fallback)",
-        attendance: attendanceBySession[session.id] ?? null,
-        payments: payments.filter((payment: Payment) => payment.sessionId === session.id),
-        notes: notes.filter((note: SessionNote) => note.sessionId === session.id),
-        attachments: attachments.filter((attachment: Attachment) => attachment.sessionId === session.id),
-      },
-    ])
+    monthSessions.map((session) => {
+      const att = attendanceBySession[session.id] ?? null;
+      const matchedPayments = payments.filter((p: Payment) => p.sessionId === session.id);
+      const matchedNotes = notes.filter((n: SessionNote) => n.sessionId === session.id);
+      const matchedAttachments = attachments.filter((a: Attachment) => a.sessionId === session.id);
+
+      return [
+        session.id,
+        {
+          session,
+          studentName: studentsById[session.studentId]?.name ?? "Unknown student",
+          studentColor: studentsById[session.studentId]?.color ?? "var(--avatar-fallback)",
+          attendance: att,
+          payments: matchedPayments,
+          notes: matchedNotes,
+          attachments: matchedAttachments,
+        },
+      ];
+    })
   );
 
   return (

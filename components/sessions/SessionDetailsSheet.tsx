@@ -79,7 +79,17 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
   const currentRecord = record;
 
   async function submitAttendance(status: AttendanceStatus) {
-    const payload = { sessionId: currentRecord.session.id, date: currentRecord.session.date, startTime: currentRecord.session.startTime, endTime: currentRecord.session.endTime, status, notes: "" };
+    if (isPending) return;
+    const payload = {
+      sessionId: currentRecord.session.id,
+      studentId: currentRecord.session.studentId,
+      scheduleId: currentRecord.session.scheduleId,
+      date: currentRecord.session.date,
+      startTime: currentRecord.session.startTime,
+      endTime: currentRecord.session.endTime,
+      status,
+      notes: "",
+    };
     startTransition(async () => {
       const result = await recordAttendance(payload);
       if (!result.ok) toast({ title: "Attendance failed", description: result.error, variant: "error" });
@@ -173,10 +183,10 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
                   <Badge variant="outline">{currentAttendance ?? SessionStatus.PLANNED}</Badge>
                 </div>
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  <Button variant={record.attendance?.status === AttendanceStatus.PRESENT ? "default" : "outline"} onClick={() => void submitAttendance(AttendanceStatus.PRESENT)}>Present</Button>
-                  <Button variant={record.attendance?.status === AttendanceStatus.ABSENT ? "destructive" : "outline"} onClick={() => void submitAttendance(AttendanceStatus.ABSENT)}>Absent</Button>
-                  <Button variant="outline" onClick={() => void submitAttendance(AttendanceStatus.CANCELLED)}>Cancelled</Button>
-                  <Button variant="outline" onClick={() => void submitAttendance(AttendanceStatus.RESCHEDULED)}>Rescheduled</Button>
+                  <Button disabled={isPending} variant={record.attendance?.status === AttendanceStatus.PRESENT ? "default" : "outline"} onClick={() => void submitAttendance(AttendanceStatus.PRESENT)}>Present</Button>
+                  <Button disabled={isPending} variant={record.attendance?.status === AttendanceStatus.ABSENT ? "destructive" : "outline"} onClick={() => void submitAttendance(AttendanceStatus.ABSENT)}>Absent</Button>
+                  <Button disabled={isPending} variant="outline" onClick={() => void submitAttendance(AttendanceStatus.CANCELLED)}>Cancelled</Button>
+                  <Button disabled={isPending} variant="outline" onClick={() => void submitAttendance(AttendanceStatus.RESCHEDULED)}>Rescheduled</Button>
                 </div>
               </section>
 

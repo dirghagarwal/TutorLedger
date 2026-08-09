@@ -9,13 +9,14 @@ import {
   recordAttendance,
   updateClassStatus,
 } from "@/app/actions/workflow";
-import { findSessions } from "@/lib/repositories/sessions";
+import { ensureSessionExists } from "@/lib/repositories/sessions";
 import { findStudents } from "@/lib/repositories/students";
 import {
   getPendingStudents,
   getRevenueThisMonth,
   getTotalOutstandingBalance,
 } from "@/lib/services/payments";
+import { getTodayDateKey, parseRelativeDate } from "@/lib/utils/date";
 import { aiActionSchema } from "@/lib/validations/ai";
 import { SessionStatus } from "@/types/session";
 import type { Student } from "@/types/students";
@@ -52,6 +53,7 @@ export async function processAiCommand(prompt: string): Promise<AiCommandResult>
 
   const enrolledStudents = await findStudents();
   const enrolledNamesList = enrolledStudents.map((s) => s.name);
+  const todayKolkataDate = getTodayDateKey();
 
   let rawLlmOutput: unknown;
   let modelName = "gemini-1.5-flash-latest";
@@ -89,7 +91,7 @@ export async function processAiCommand(prompt: string): Promise<AiCommandResult>
     });
 
     const systemPrompt = `You are TutorLedger's command interpreter AI.
-Today's date is ${new Date().toISOString().slice(0, 10)}.
+Today's date is ${todayKolkataDate} (Asia/Kolkata time zone).
 
 Available enrolled students in database:
 ${enrolledNamesList.length > 0 ? enrolledNamesList.map((n) => `- "${n}"`).join("\n") : "No enrolled students yet"}
@@ -99,6 +101,10 @@ STRICT ENTITY EXTRACTION RULES:
 2. NEVER invent a student name or use generic terms like "student", "the student", "user", "person", "someone".
 3. If student name is omitted, unspecified, or ambiguous, return studentName = null.
 4. For combined student names in database (e.g. "Aahan & Aalya"), match the combined name.
+
+STRICT DATE RULES:
+- If user mentions "today", "tomorrow", "yesterday", extract date as "today", "tomorrow", or "yesterday".
+- DO NOT invent arbitrary dates in the past (like 2026-07-27). Default date to "today".
 
 Action Intent Schema:
 - "QUERY_STATS": Asking about pending fees, revenue, or student list. Set topic to "PENDING_FEES", "REVENUE", or "STUDENT_LIST".
@@ -114,7 +120,6 @@ Action Intent Schema:
     const text = response.response.text();
     rawLlmOutput = JSON.parse(text);
   } catch {
-    // Structured prompt parsing if Gemini API encounters rate limit or network issue
     rawLlmOutput = parsePromptFallback(trimmed, enrolledNamesList);
     modelName = "gemini-1.5-flash-latest (fallback)";
   }
@@ -141,22 +146,16 @@ Action Intent Schema:
       }
       const student = studentRes.student;
 
-      const today = action.date || new Date().toISOString().slice(0, 10);
-      const allSessions = await findSessions();
-      const session = allSessions.find(
-        (s) => s.studentId === student.id && s.date === today
-      ) ?? allSessions.find((s) => s.studentId === student.id);
-
-      if (!session) {
-        return {
-          ok: false,
-          message: `No class session found for ${student.name}. Please set up a weekly schedule first.`,
-          llmUsed: modelName,
-        };
-      }
+      const targetDate = parseRelativeDate(action.date);
+      const session = await ensureSessionExists({
+        studentId: student.id,
+        date: targetDate,
+      });
 
       const result = await recordAttendance({
         sessionId: session.id,
+        studentId: student.id,
+        scheduleId: session.scheduleId,
         date: session.date,
         startTime: session.startTime,
         endTime: session.endTime,
@@ -174,7 +173,7 @@ Action Intent Schema:
       return {
         ok: true,
         actionType: "RECORD_ATTENDANCE",
-        message: `Marked ${student.name} as ${action.status} for session on ${session.date}.`,
+        message: `Marked ${student.name} ${action.status} for session on ${session.date}.`,
         llmUsed: modelName,
       };
     }
@@ -238,11 +237,11 @@ Action Intent Schema:
       }
       const student = studentRes.student;
 
-      const allSessions = await findSessions();
-      const session = allSessions.find((s) => s.studentId === student.id);
-      if (!session) {
-        return { ok: false, message: `No active session found for ${student.name}.`, llmUsed: modelName };
-      }
+      const targetDate = getTodayDateKey();
+      const session = await ensureSessionExists({
+        studentId: student.id,
+        date: targetDate,
+      });
 
       const result = await updateClassStatus({
         sessionId: session.id,
@@ -250,7 +249,10 @@ Action Intent Schema:
         studentId: student.id,
         scheduleId: session.scheduleId,
         date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
       });
+
       if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
 
       revalidatePath("/");
@@ -259,7 +261,7 @@ Action Intent Schema:
       return {
         ok: true,
         actionType: "START_CLASS",
-        message: `Started class for ${student.name}. Status updated to IN_PROGRESS.`,
+        message: `Started class for ${student.name} on ${session.date}. Status updated to IN_PROGRESS.`,
         llmUsed: modelName,
       };
     }
@@ -271,11 +273,11 @@ Action Intent Schema:
       }
       const student = studentRes.student;
 
-      const allSessions = await findSessions();
-      const session = allSessions.find((s) => s.studentId === student.id);
-      if (!session) {
-        return { ok: false, message: `No active session found for ${student.name}.`, llmUsed: modelName };
-      }
+      const targetDate = getTodayDateKey();
+      const session = await ensureSessionExists({
+        studentId: student.id,
+        date: targetDate,
+      });
 
       const result = await updateClassStatus({
         sessionId: session.id,
@@ -283,7 +285,10 @@ Action Intent Schema:
         studentId: student.id,
         scheduleId: session.scheduleId,
         date: session.date,
+        startTime: session.startTime,
+        endTime: session.endTime,
       });
+
       if (!result.ok) return { ok: false, message: result.error, llmUsed: modelName };
 
       revalidatePath("/");
@@ -292,7 +297,7 @@ Action Intent Schema:
       return {
         ok: true,
         actionType: "END_CLASS",
-        message: `Ended class for ${student.name}. Status updated to COMPLETED.`,
+        message: `Ended class for ${student.name} on ${session.date}. Status updated to COMPLETED.`,
         llmUsed: modelName,
       };
     }
@@ -304,11 +309,11 @@ Action Intent Schema:
       }
       const student = studentRes.student;
 
-      const allSessions = await findSessions();
-      const session = allSessions.find((s) => s.studentId === student.id);
-      if (!session) {
-        return { ok: false, message: `No active session found for ${student.name}.`, llmUsed: modelName };
-      }
+      const targetDate = getTodayDateKey();
+      const session = await ensureSessionExists({
+        studentId: student.id,
+        date: targetDate,
+      });
 
       const result = await addSessionNote({
         sessionId: session.id,
@@ -328,7 +333,7 @@ Action Intent Schema:
       return {
         ok: true,
         actionType: "ADD_SESSION_NOTE",
-        message: `Saved session notes for ${student.name}.`,
+        message: `Saved session notes for ${student.name} on ${session.date}.`,
         llmUsed: modelName,
       };
     }
@@ -424,7 +429,6 @@ async function resolveStudentEntity(
   // 2. Substring & word matches
   const matches = enrolledStudents.filter((s) => {
     const sName = s.name.toLowerCase().trim();
-    // Split combined names like "Aahan & Aalya" into parts
     const parts = sName.split(/\s*(?:&|and|,)\s*/);
     return (
       sName.includes(normalized) ||
@@ -468,7 +472,6 @@ function isGenericName(name: string): boolean {
 function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
   const lower = prompt.toLowerCase();
 
-  // 1. Query stats checks first
   if (lower.includes("pending") || lower.includes("due") || lower.includes("unpaid")) {
     return { action: "QUERY_STATS", topic: "PENDING_FEES" };
   }
@@ -481,22 +484,25 @@ function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
     return { action: "QUERY_STATS", topic: "STUDENT_LIST" };
   }
 
-  // Find mentioned student name from enrolled list if present in prompt
   const matchedName = enrolledNames.find((n) => {
     const parts = n.toLowerCase().split(/\s*(?:&|and|,)\s*/);
     return parts.some((p) => p.length > 2 && lower.includes(p.toLowerCase()));
   }) ?? null;
+
+  let date = "today";
+  if (lower.includes("tomorrow")) date = "tomorrow";
+  if (lower.includes("yesterday")) date = "yesterday";
 
   if (lower.includes("delete") || lower.includes("remove")) {
     return { action: "DELETE_STUDENT_REQUEST", studentName: matchedName };
   }
 
   if (lower.includes("start")) {
-    return { action: "START_CLASS", studentName: matchedName };
+    return { action: "START_CLASS", studentName: matchedName, date };
   }
 
   if (lower.includes("end")) {
-    return { action: "END_CLASS", studentName: matchedName };
+    return { action: "END_CLASS", studentName: matchedName, date };
   }
 
   if (lower.includes("homework") || lower.includes("classwork") || lower.includes("topic") || lower.includes("note")) {
@@ -504,6 +510,7 @@ function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
     return {
       action: "ADD_SESSION_NOTE",
       studentName: matchedName,
+      date,
       homework: hwMatch?.[1] || prompt,
     };
   }
@@ -512,7 +519,7 @@ function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
     let status = "PRESENT";
     if (lower.includes("absent")) status = "ABSENT";
     if (lower.includes("cancelled")) status = "CANCELLED";
-    return { action: "RECORD_ATTENDANCE", studentName: matchedName, status };
+    return { action: "RECORD_ATTENDANCE", studentName: matchedName, status, date };
   }
 
   if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees")) {
@@ -522,6 +529,7 @@ function parsePromptFallback(prompt: string, enrolledNames: string[]): unknown {
       studentName: matchedName,
       amount: amountMatch ? Number(amountMatch[1]) : 500,
       method: "UPI",
+      date,
     };
   }
 

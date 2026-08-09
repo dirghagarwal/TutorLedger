@@ -68,8 +68,11 @@ export default function CalendarDay({
               >
                 {getInitials(student?.name ?? "Student")}
               </span>
-              <span className="truncate text-xs text-secondary-foreground">
+              <span className="truncate text-xs text-secondary-foreground flex items-center gap-1">
                 {student?.name ?? "Student"}
+                {session.status === "COMPLETED" && <span className="size-1.5 rounded-full bg-success shrink-0" title="Completed / Present" />}
+                {session.status === "IN_PROGRESS" && <span className="size-1.5 rounded-full bg-primary animate-pulse shrink-0" title="In Progress" />}
+                {session.status === "CANCELLED" && <span className="size-1.5 rounded-full bg-destructive shrink-0" title="Cancelled" />}
               </span>
             </div>
           );

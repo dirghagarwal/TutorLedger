@@ -6,6 +6,8 @@ import {
 import { DayOfWeek, type Schedule } from "@/types/schedule";
 import { SessionStatus, type Session } from "@/types/session";
 
+import { getDateKey } from "@/lib/utils/date";
+
 const dayOrder: readonly DayOfWeek[] = [
   DayOfWeek.SUNDAY,
   DayOfWeek.MONDAY,
@@ -21,16 +23,10 @@ function getDayOfWeek(date: Date): DayOfWeek {
 }
 
 function toDateKey(date: Date): string {
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0"),
-  ].join("-");
+  return getDateKey(date);
 }
 
-export function getDateKey(date: Date): string {
-  return toDateKey(date);
-}
+export { getDateKey };
 
 function toMinutes(time: string): number {
   const [hours, minutes] = time.split(":").map(Number);
@@ -167,11 +163,22 @@ export async function getTodaysSessions(
   return records.filter((session) => session.date === toDateKey(date));
 }
 
+function getNowTimeKey(now = new Date()): string {
+  const dateKey = toDateKey(now);
+  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  return `${dateKey}T${timeFormatter.format(now)}`;
+}
+
 export async function getUpcomingSessions(
   allSessions: readonly Session[] | undefined,
   now = new Date()
 ): Promise<Session[]> {
-  const nowKey = `${toDateKey(now)}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const nowKey = getNowTimeKey(now);
   const records = allSessions ?? (await getAllSessions(now));
   return records
     .filter(
@@ -187,7 +194,7 @@ export async function getPastSessions(
   allSessions: readonly Session[] | undefined,
   now = new Date()
 ): Promise<Session[]> {
-  const nowKey = `${toDateKey(now)}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+  const nowKey = getNowTimeKey(now);
   const records = allSessions ?? (await getAllSessions(now));
   return records
     .filter((session) => `${session.date}T${session.startTime}` < nowKey)
