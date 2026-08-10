@@ -229,7 +229,7 @@ export default function MonthlyClassTracker({
 
         const attachRes = await addSessionAttachment(formData);
         if (!attachRes.ok) {
-          toast({ title: "Notes saved, but attachment upload failed", description: attachRes.error, variant: "destructive" });
+          toast({ title: "Notes saved, but attachment upload failed", description: attachRes.error, variant: "error" });
         }
       }
 
