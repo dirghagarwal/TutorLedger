@@ -813,7 +813,7 @@ function resolveDatesWithContextPriority(
   const normPrompt = fullPrompt.toLowerCase();
   const hasExplicitDateWord =
     dateRef ||
-    /\b(yesterday|today|tomorrow|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat|\d{1,2}(?:st|nd|rd|th)?)\b/i.test(normPrompt);
+    /\b(yesterday|yesterdy|yestarday|yesturday|yest|today|tday|toda|tomorrow|tomorow|tommorow|tomm|tomn|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat|\d{1,2}(?:st|nd|rd|th)?)\b/i.test(normPrompt);
 
   if (hasExplicitDateWord && multiDates.length > 0) {
     return multiDates;
@@ -1009,8 +1009,9 @@ function parsePromptFallback(
   }
 
   let dateReference: string | null = null;
-  if (lower.includes("tomorrow")) dateReference = "tomorrow";
-  if (lower.includes("yesterday")) dateReference = "yesterday";
+  if (/\b(tomorrow|tomorow|tommorow|tomm|tomn)\b/i.test(lower)) dateReference = "tomorrow";
+  if (/\b(yesterday|yesterdy|yestarday|yesturday|yest)\b/i.test(lower)) dateReference = "yesterday";
+  if (/\b(today|tday|toda)\b/i.test(lower)) dateReference = "today";
 
   if ((lower.includes("delete") || lower.includes("remove")) && (lower.includes("class") || lower.includes("session") || lower.includes("wednesday") || lower.includes("monday") || lower.includes("tuesday") || lower.includes("thursday") || lower.includes("friday") || lower.includes("saturday") || lower.includes("sunday"))) {
     return { action: "DELETE_SESSION", studentReference: matchedName, dateReference: prompt };

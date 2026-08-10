@@ -69,6 +69,12 @@ const MONTHS: Record<string, number> = {
 
 function sanitizePromptForDates(text: string): string {
   let cleaned = text.toLowerCase();
+
+  // Controlled typo normalization for relative date terms
+  cleaned = cleaned.replace(/\b(yesterday|yesterdy|yestarday|yesturday|yest)\b/gi, "yesterday");
+  cleaned = cleaned.replace(/\b(tomorrow|tomorow|tommorow|tomm|tomn)\b/gi, "tomorrow");
+  cleaned = cleaned.replace(/\b(today|tday|toda)\b/gi, "today");
+
   // Strip out negations such as "not yesterday", "not today", "not monday", "instead of yesterday"
   cleaned = cleaned.replaceAll(/not\s+(?:yesterday|today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday|mon|tue|wed|thu|fri|sat|sun)\b/gi, "");
   cleaned = cleaned.replaceAll(/instead\s+of\s+(?:yesterday|today|tomorrow|sunday|monday|tuesday|wednesday|thursday|friday|saturday)\b/gi, "");
