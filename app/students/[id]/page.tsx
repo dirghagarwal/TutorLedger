@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import Sidebar from "@/components/layout/Sidebar";
 import AttendanceTimeline from "@/components/students/AttendanceTimeline";
+import MonthlyClassTracker from "@/components/students/MonthlyClassTracker";
 import PaymentHistory from "@/components/students/PaymentHistory";
 import SessionTimeline from "@/components/students/SessionTimeline";
 import StudentProfileActions from "@/components/students/StudentProfileActions";
@@ -50,33 +51,48 @@ const feeTypeLabels: Record<FeeType, string> = {
 export default async function StudentProfilePage({
   params,
 }: PageProps<"/students/[id]">) {
-  const { id } = await params;
-  const student = await findStudentById(id);
+  const [
+    student,
+    studentAttendance,
+    studentSchedules,
+    allPayments,
+    allSessions,
+    allAttendance,
+  ] = await Promise.all([
+    findStudentById(id),
+    getAttendanceForStudent(id),
+    getSchedulesForStudent(id),
+    findPayments(),
+    findSessions(),
+    findAttendance(),
+  ]);
 
   if (!student) {
     notFound();
   }
 
-  const studentAttendance = await getAttendanceForStudent(student.id);
   const attendanceSummary = getAttendanceSummary(studentAttendance);
-  const studentSchedules = await getSchedulesForStudent(student.id);
   const todaysClasses = getTodaysClasses(studentSchedules);
   const nextClass = getNextUpcomingClass(studentSchedules);
-  const [studentPayments, outstandingBalance, lifetimePayments, recentPayment] =
-    await Promise.all([
-      getPaymentHistory(student.id),
-      getOutstandingBalance(student.id),
-      getLifetimePayments(student.id),
-      getRecentPayment(student.id),
-    ]);
-  const studentSessions = await getSessionsByStudent(student.id);
-  const [sessionNotes, sessionAttachments, sessionPayments] = await Promise.all([
+  const studentPayments = await getPaymentHistory(student.id, allPayments);
+  const outstandingBalance = await getOutstandingBalance(
+    student.id,
+    allPayments,
+    [student],
+    allSessions,
+    allAttendance
+  );
+  const lifetimePayments = await getLifetimePayments(student.id, allPayments);
+  const recentPayment = await getRecentPayment(student.id, allPayments);
+  const studentSessions = allSessions.filter((s) => s.studentId === student.id);
+
+  const [sessionNotes, sessionAttachments] = await Promise.all([
     findSessionNotesBySessionIds(studentSessions.map((session) => session.id)),
     findAttachmentsBySessionIds(studentSessions.map((session) => session.id)),
-    findPayments(),
   ]);
+
   const paymentsBySession = Object.fromEntries(
-    studentSessions.map((session) => [session.id, sessionPayments.filter((payment) => payment.sessionId === session.id)])
+    studentSessions.map((session) => [session.id, allPayments.filter((payment) => payment.sessionId === session.id)])
   );
   const notesBySession = Object.fromEntries(
     studentSessions.map((session) => [session.id, sessionNotes.filter((note) => note.sessionId === session.id)])
@@ -174,6 +190,18 @@ export default async function StudentProfilePage({
                 />
               </CardContent>
             </Card>
+          </div>
+
+          <div className="mt-6">
+            <MonthlyClassTracker
+              attachmentsBySession={attachmentsBySession}
+              attendance={studentAttendance}
+              notesBySession={notesBySession}
+              paymentsBySession={paymentsBySession}
+              schedules={studentSchedules}
+              sessions={studentSessions}
+              student={student}
+            />
           </div>
 
           <div className="mt-6">

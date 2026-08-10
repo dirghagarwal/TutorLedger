@@ -20,6 +20,7 @@ export const aiSemanticOutputSchema = z.object({
   ]),
   studentReference: z.string().nullable().optional(),
   dateReference: z.string().nullable().optional(),
+  dates: z.array(z.string()).nullable().optional(),
   status: z.nativeEnum(AttendanceStatus).nullable().optional(),
   amount: z.number().nullable().optional(),
   method: z.nativeEnum(PaymentMethod).nullable().optional(),

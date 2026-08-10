@@ -217,3 +217,50 @@ export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok
     return { ok: false, error: error instanceof Error ? error.message : "Unable to add past class." };
   }
 }
+
+export interface MarkClassTakenInput {
+  studentId: string;
+  date: string;
+  scheduleId?: string;
+  startTime?: string;
+  endTime?: string;
+}
+
+export async function markClassTakenFromProfile(
+  input: MarkClassTakenInput
+): Promise<{ ok: true; sessionId: string } | { ok: false; error: string }> {
+  try {
+    const student = await prisma.student.findUnique({ where: { id: input.studentId } });
+    if (!student) {
+      return { ok: false, error: "Student record not found." };
+    }
+
+    const canonicalSession = await ensureSessionExists({
+      studentId: input.studentId,
+      date: input.date,
+      scheduleId: input.scheduleId,
+      startTime: input.startTime,
+      endTime: input.endTime,
+    });
+
+    const attResult = await recordAttendance({
+      sessionId: canonicalSession.id,
+      studentId: input.studentId,
+      scheduleId: canonicalSession.scheduleId,
+      date: input.date,
+      startTime: canonicalSession.startTime,
+      endTime: canonicalSession.endTime,
+      status: AttendanceStatus.PRESENT,
+      notes: "Marked taken via Student Profile",
+    });
+
+    if (!attResult.ok) {
+      return { ok: false, error: attResult.error };
+    }
+
+    revalidateSessionPaths(canonicalSession.id, input.studentId);
+    return { ok: true, sessionId: canonicalSession.id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to mark class taken." };
+  }
+}

@@ -17,7 +17,7 @@ import {
   getRevenueThisMonth,
   getTotalOutstandingBalance,
 } from "@/lib/services/payments";
-import { formatDisplayDate, getTodayDateKey, parseRelativeDate } from "@/lib/utils/date";
+import { formatDisplayDate, getTodayDateKey, parseRelativeDate, parseMultipleRelativeDates } from "@/lib/utils/date";
 import { normalizeName, stringSimilarity } from "@/lib/utils/string";
 import { aiSemanticOutputSchema, type AiSemanticOutput } from "@/lib/validations/ai";
 import { AttendanceStatus } from "@/types/attendance";
@@ -105,6 +105,7 @@ export async function processAiCommand(
             action: { type: SchemaType.STRING },
             studentReference: { type: SchemaType.STRING, nullable: true },
             dateReference: { type: SchemaType.STRING, nullable: true },
+            dates: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, nullable: true },
             status: { type: SchemaType.STRING, nullable: true },
             amount: { type: SchemaType.NUMBER, nullable: true },
             method: { type: SchemaType.STRING, nullable: true },
@@ -137,7 +138,8 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
 2. Understand conversational context and corrections (e.g. "Actually Wednesday", "Sorry meant Aahan", "Add homework").
 3. Extract semantic references ONLY if mentioned or implied. Set studentReference = null if omitted or unclear.
 4. NEVER invent database IDs, calendar dates, or student names.
-5. STRICT DELETION SEPARATION:
+5. MULTI-DATE COMMANDS: When the user mentions multiple dates (e.g. "2nd and 9th August", "Wednesday and Friday"), return the array of dates in the 'dates' field as YYYY-MM-DD strings.
+6. STRICT DELETION SEPARATION:
    - "DELETE_SESSION": For deleting a specific class/lesson (e.g. "Delete Wednesday class", "Remove yesterday's session").
    - "DELETE_STUDENT_REQUEST": ONLY for deleting an entire student profile (e.g. "Delete Viraj & Vivaan").`;
 
@@ -181,7 +183,8 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const targetDate = resolveDateWithContextPriority(
+      const targetDates = resolveDatesWithContextPriority(
+        semanticOutput.dates,
         semanticOutput.dateReference,
         trimmed,
         activeContext,
@@ -189,31 +192,63 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       );
 
       const status = semanticOutput.status ?? AttendanceStatus.PRESENT;
-      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+      const results: { date: string; ok: boolean; error?: string }[] = [];
+      let lastContext: ActiveSessionContext | null = activeContext;
 
-      const result = await recordAttendance({
-        sessionId: session.id,
-        studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        status,
-        notes: "Recorded via TutorLedger AI",
-      });
+      for (const targetDate of targetDates) {
+        try {
+          const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+          const res = await recordAttendance({
+            sessionId: session.id,
+            studentId: student.id,
+            scheduleId: session.scheduleId,
+            date: session.date,
+            startTime: session.startTime,
+            endTime: session.endTime,
+            status,
+            notes: "Recorded via TutorLedger AI",
+          });
 
-      if (!result.ok) {
-        return { ok: false, state: "BLOCKED", message: result.error, activeContext, llmUsed: modelName };
+          if (res.ok) {
+            results.push({ date: targetDate, ok: true });
+            lastContext = {
+              studentId: student.id,
+              studentName: student.name,
+              sessionId: session.id,
+              date: session.date,
+              scheduleId: session.scheduleId,
+            };
+          } else {
+            results.push({ date: targetDate, ok: false, error: res.error });
+          }
+        } catch (err) {
+          const errMsg = err instanceof Error ? err.message : "Database error";
+          results.push({ date: targetDate, ok: false, error: errMsg });
+        }
       }
 
-      const newContext: ActiveSessionContext = {
-        studentId: student.id,
-        studentName: student.name,
-        sessionId: session.id,
-        date: session.date,
-        scheduleId: session.scheduleId,
-      };
+      const succeeded = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
 
+      if (failed.length > 0 && succeeded.length === 0) {
+        const errDetails = failed.map((f) => `Couldn't record ${student.name}'s ${formatDisplayDate(f.date)} class (${f.error}).`).join(" ");
+        return { ok: false, state: "BLOCKED", message: errDetails, activeContext, llmUsed: modelName };
+      }
+
+      if (failed.length > 0 && succeeded.length > 0) {
+        const succMsg = succeeded.map((s) => formatDisplayDate(s.date)).join(", ");
+        const failMsg = failed.map((f) => `${formatDisplayDate(f.date)} (${f.error})`).join(", ");
+        return {
+          ok: true,
+          state: "RESOLVED",
+          actionType: "RECORD_ATTENDANCE",
+          message: `Marked ${student.name} ${status} for ${succMsg}. Failed for: ${failMsg}.`,
+          activeContext: lastContext,
+          llmUsed: modelName,
+        };
+      }
+
+      const dateStr = succeeded.map((s) => formatDisplayDate(s.date)).join(" & ");
       safeRevalidate("/");
       safeRevalidate("/calendar");
       safeRevalidate(`/students/${student.id}`);
@@ -221,8 +256,8 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         ok: true,
         state: "RESOLVED",
         actionType: "RECORD_ATTENDANCE",
-        message: `Marked ${student.name} ${status} for ${formatDisplayDate(session.date)}.`,
-        activeContext: newContext,
+        message: `Marked ${student.name} ${status} for ${dateStr}.`,
+        activeContext: lastContext,
         llmUsed: modelName,
       };
     }
@@ -248,12 +283,13 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const targetDate = resolveDateWithContextPriority(
+      const targetDate = resolveDatesWithContextPriority(
+        semanticOutput.dates,
         semanticOutput.dateReference,
         trimmed,
         activeContext,
         studentRes.isStudentSwitch
-      );
+      )[0]!;
 
       const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
 
@@ -399,12 +435,13 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const targetDate = resolveDateWithContextPriority(
+      const targetDate = resolveDatesWithContextPriority(
+        semanticOutput.dates,
         semanticOutput.dateReference,
         trimmed,
         activeContext,
         studentRes.isStudentSwitch
-      );
+      )[0]!;
 
       const allSessions = await findSessions();
       const matchingSessions = allSessions.filter(
@@ -760,31 +797,33 @@ async function resolveStudentWithContextPriority(
   };
 }
 
-function resolveDateWithContextPriority(
+function resolveDatesWithContextPriority(
+  explicitDates: string[] | null | undefined,
   dateRef: string | null | undefined,
   fullPrompt: string,
   activeContext?: ActiveSessionContext | null,
   isStudentSwitch: boolean = false
-): string {
+): string[] {
+  if (explicitDates && explicitDates.length > 0) {
+    const resolved = explicitDates.map((d) => parseRelativeDate(d, fullPrompt));
+    return [...new Set(resolved)];
+  }
+
+  const multiDates = parseMultipleRelativeDates(dateRef, fullPrompt);
   const normPrompt = fullPrompt.toLowerCase();
-  const hasExplicitToday = normPrompt.includes("today");
+  const hasExplicitDateWord =
+    dateRef ||
+    /\b(yesterday|today|tomorrow|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat|\d{1,2}(?:st|nd|rd|th)?)\b/i.test(normPrompt);
 
-  // Priority 1: Explicit date in current prompt
-  if (dateRef && dateRef !== "today") {
-    return parseRelativeDate(dateRef, fullPrompt);
+  if (hasExplicitDateWord && multiDates.length > 0) {
+    return multiDates;
   }
 
-  if (hasExplicitToday) {
-    return getTodayDateKey();
-  }
-
-  // Priority 2: Active Session Context (unless student was explicitly switched)
   if (!isStudentSwitch && activeContext?.date) {
-    return activeContext.date;
+    return [activeContext.date];
   }
 
-  // Default: Today's date
-  return getTodayDateKey();
+  return [getTodayDateKey()];
 }
 
 export type EntityResult =
@@ -909,7 +948,10 @@ function parsePromptFallback(
 
   let matchedName = enrolledNames.find((n) => {
     const parts = normalizeName(n).split(/\s+and\s+|\s+/);
-    return parts.some((p) => p.length >= 3 && lower.includes(p));
+    const words = lower.split(/\s+/);
+    return parts.some((p) =>
+      words.some((w) => w.length >= 3 && (w.includes(p) || p.includes(w) || stringSimilarity(w, p) >= 0.75))
+    );
   }) ?? null;
 
   if (!matchedName && history.length > 0) {
@@ -999,11 +1041,20 @@ function parsePromptFallback(
     };
   }
 
-  if (lower.includes("present") || lower.includes("absent") || lower.includes("cancelled") || lower.includes("took") || lower.includes("had") || lower.includes("taught")) {
+  if (
+    lower.includes("present") ||
+    lower.includes("absent") ||
+    lower.includes("cancelled") ||
+    lower.includes("took") ||
+    lower.includes("had") ||
+    lower.includes("taught") ||
+    lower.includes("taken") ||
+    (lower.includes("record") && (lower.includes("class") || lower.includes("session") || lower.includes("attendance")))
+  ) {
     let status = AttendanceStatus.PRESENT;
     if (lower.includes("absent")) status = AttendanceStatus.ABSENT;
     if (lower.includes("cancelled")) status = AttendanceStatus.CANCELLED;
-    return { action: "RECORD_ATTENDANCE", studentReference: matchedName, status, dateReference };
+    return { action: "RECORD_ATTENDANCE", studentReference: matchedName, status, dateReference: prompt };
   }
 
   if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees") || lower.includes("2k") || lower.includes("1k")) {

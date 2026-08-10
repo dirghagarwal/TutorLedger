@@ -88,7 +88,7 @@ export function parseRelativeDate(
   const isoMatch = cleaned.match(/\b(\d{4}-\d{2}-\d{2})\b/);
   if (isoMatch?.[1]) return isoMatch[1];
 
-  // 2. Explicit Natural Date ("5 August", "5th Aug", "August 5", "Aug 5th")
+  // 2. Explicit Natural Date ("5 August", "5th Aug", "August 5", "Aug 5th", "2nd August", "9th August")
   const naturalMatch1 = cleaned.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/i);
   if (naturalMatch1) {
     const day = Number(naturalMatch1[1]);
@@ -173,4 +173,88 @@ export function parseRelativeDate(
   }
 
   return todayKey;
+}
+
+/**
+ * Robust Multi-Date Parser for Asia/Kolkata time zone.
+ * Parses prompts with multiple dates such as:
+ * - "2nd and 9th August"
+ * - "2nd, 5th and 9th August"
+ * - "August 2 and 9"
+ * - "Wednesday and Friday"
+ * - "yesterday and today"
+ */
+export function parseMultipleRelativeDates(
+  reference?: string | null,
+  fullPrompt?: string | null
+): string[] {
+  const rawInput = `${reference ?? ""} ${fullPrompt ?? ""}`.trim();
+  if (!rawInput) return [getTodayDateKey()];
+
+  const cleaned = sanitizePromptForDates(rawInput);
+
+  // Pattern 1: ISO Dates (e.g. "2026-08-02 and 2026-08-09")
+  const isoMatches = cleaned.match(/\b(\d{4}-\d{2}-\d{2})\b/g);
+  if (isoMatches && isoMatches.length > 0) {
+    return [...new Set(isoMatches)];
+  }
+
+  // Pattern 2: "2nd and 9th August", "2nd, 5th and 9th August", "2 and 9 August", "2, 9 August"
+  const multiDayMonthEndMatch = cleaned.match(
+    /\b((?:\d{1,2}(?:st|nd|rd|th)?(?:\s*,\s*|\s+and\s+|\s+)?)+)\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/i
+  );
+  if (multiDayMonthEndMatch?.[1] && multiDayMonthEndMatch[2]) {
+    const dayNumbers = multiDayMonthEndMatch[1].match(/\d{1,2}/g);
+    const monthStr = multiDayMonthEndMatch[2].toLowerCase();
+    const month = MONTHS[monthStr];
+    const year = multiDayMonthEndMatch[3] ? Number(multiDayMonthEndMatch[3]) : 2026;
+    if (dayNumbers && month !== undefined) {
+      const dates: string[] = [];
+      for (const numStr of dayNumbers) {
+        const day = Number(numStr);
+        if (!Number.isNaN(day) && day >= 1 && day <= 31) {
+          const d = new Date(Date.UTC(year, month, day));
+          dates.push(getDateKey(d));
+        }
+      }
+      if (dates.length > 0) return [...new Set(dates)];
+    }
+  }
+
+  // Pattern 3: "August 2nd and 9th", "August 2, 5 and 9", "Aug 2 and 9"
+  const multiDayMonthStartMatch = cleaned.match(
+    /\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+((?:\d{1,2}(?:st|nd|rd|th)?(?:\s*,\s*|\s+and\s+|\s+)?)+)(?:\s*,?\s*(\d{4}))?\b/i
+  );
+  if (multiDayMonthStartMatch?.[1] && multiDayMonthStartMatch[2]) {
+    const monthStr = multiDayMonthStartMatch[1].toLowerCase();
+    const dayNumbers = multiDayMonthStartMatch[2].match(/\d{1,2}/g);
+    const month = MONTHS[monthStr];
+    const year = multiDayMonthStartMatch[3] ? Number(multiDayMonthStartMatch[3]) : 2026;
+    if (dayNumbers && month !== undefined) {
+      const dates: string[] = [];
+      for (const numStr of dayNumbers) {
+        const day = Number(numStr);
+        if (!Number.isNaN(day) && day >= 1 && day <= 31) {
+          const d = new Date(Date.UTC(year, month, day));
+          dates.push(getDateKey(d));
+        }
+      }
+      if (dates.length > 0) return [...new Set(dates)];
+    }
+  }
+
+  // Pattern 4: Multiple discrete relative expressions separated by "and" or comma (e.g. "Wednesday and Friday", "2nd August and 9th August")
+  const chunks = cleaned.split(/\s+and\s+|\s*,\s*/i);
+  if (chunks.length > 1) {
+    const parsedDates: string[] = [];
+    for (const chunk of chunks) {
+      if (chunk.trim()) {
+        const d = parseRelativeDate(chunk, fullPrompt);
+        if (d) parsedDates.push(d);
+      }
+    }
+    if (parsedDates.length > 0) return [...new Set(parsedDates)];
+  }
+
+  return [parseRelativeDate(reference, fullPrompt)];
 }

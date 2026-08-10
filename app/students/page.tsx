@@ -52,7 +52,7 @@ export default async function StudentsPage() {
     students.map(async (student) => {
       const studentAttendance = attendanceByStudent.get(student.id) ?? [];
       const studentSchedules = schedulesByStudent.get(student.id) ?? [];
-      const outstandingBalance = await getOutstandingBalance(student.id, payments);
+      const outstandingBalance = await getOutstandingBalance(student.id, payments, students, sessions, attendanceRecords);
 
       return {
         attendedClasses: getAttendedClassCount(studentAttendance),
