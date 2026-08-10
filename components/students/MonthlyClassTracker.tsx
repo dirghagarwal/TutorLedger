@@ -28,7 +28,7 @@ import { formatDisplayDate, getTodayDateKey } from "@/lib/utils/date";
 import type { Attachment } from "@/types/attachment";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import type { Payment } from "@/types/payment";
-import { SessionStatus, type Session } from "@/types/session";
+import type { Session } from "@/types/session";
 import type { SessionNote } from "@/types/session-note";
 import type { Schedule } from "@/types/schedule";
 import type { Student } from "@/types/students";
@@ -229,7 +229,7 @@ export default function MonthlyClassTracker({
 
         const attachRes = await addSessionAttachment(formData);
         if (!attachRes.ok) {
-          toast({ title: "Notes saved, but attachment upload failed", description: attachRes.error, variant: "warning" });
+          toast({ title: "Notes saved, but attachment upload failed", description: attachRes.error, variant: "destructive" });
         }
       }
 

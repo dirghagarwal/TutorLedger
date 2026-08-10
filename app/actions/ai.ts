@@ -193,7 +193,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
 
       const status = semanticOutput.status ?? AttendanceStatus.PRESENT;
       const results: { date: string; ok: boolean; error?: string }[] = [];
-      let lastContext: ActiveSessionContext | null = activeContext;
+      let lastContext: ActiveSessionContext | null = activeContext ?? null;
 
       for (const targetDate of targetDates) {
         try {

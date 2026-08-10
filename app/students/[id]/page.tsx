@@ -12,6 +12,8 @@ import Topbar from "@/components/layout/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { findAttendance } from "@/lib/repositories/attendance";
+import { findSessions } from "@/lib/repositories/sessions";
 import { findStudentById } from "@/lib/repositories/students";
 import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
 import { getAttendanceForStudent, getAttendanceSummary } from "@/lib/services/attendance";
@@ -28,9 +30,6 @@ import {
   getSchedulesForStudent,
   getTodaysClasses,
 } from "@/lib/services/schedule";
-import {
-  getSessionsByStudent,
-} from "@/lib/services/sessions";
 import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
 import { findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
@@ -51,6 +50,7 @@ const feeTypeLabels: Record<FeeType, string> = {
 export default async function StudentProfilePage({
   params,
 }: PageProps<"/students/[id]">) {
+  const { id } = await params;
   const [
     student,
     studentAttendance,
