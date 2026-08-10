@@ -38,7 +38,7 @@ export interface ActiveSessionContext {
   studentName: string;
   sessionId: string;
   date: string;
-  scheduleId: string;
+  scheduleId?: string;
 }
 
 export interface AiCommandResult {
@@ -283,21 +283,45 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const targetDate = resolveDatesWithContextPriority(
-        semanticOutput.dates,
-        semanticOutput.dateReference,
-        trimmed,
-        activeContext,
-        studentRes.isStudentSwitch
-      )[0]!;
+      const hasExplicitDate = hasExplicitDateMention(semanticOutput.dateReference, trimmed);
 
-      const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+      // If user provided no explicit date and student was switched without a date set, ask for clarification
+      if (!hasExplicitDate && !studentRes.isStudentSwitch && activeContext?.studentId === student.id && !activeContext.date && !activeContext.sessionId) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: `Which class or date should I add this homework to for ${student.name}?`,
+          clarificationOptions: studentRes.options,
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
+
+      let targetSessionId: string | null = null;
+      let targetDate: string;
+
+      if (!hasExplicitDate && !studentRes.isStudentSwitch && activeContext?.studentId === student.id && activeContext.sessionId) {
+        // DIRECT REUSE OF EXISTING ACTIVE SESSION ID (No date drift or duplicate creation!)
+        targetSessionId = activeContext.sessionId;
+        targetDate = activeContext.date || getTodayDateKey();
+      } else {
+        targetDate = resolveDatesWithContextPriority(
+          semanticOutput.dates,
+          semanticOutput.dateReference,
+          trimmed,
+          activeContext,
+          studentRes.isStudentSwitch
+        )[0]!;
+
+        const session = await ensureSessionExists({ studentId: student.id, date: targetDate });
+        targetSessionId = session.id;
+      }
 
       const result = await addSessionNote({
-        sessionId: session.id,
+        sessionId: targetSessionId,
         studentId: student.id,
-        scheduleId: session.scheduleId,
-        date: session.date,
+        date: targetDate,
         topic: semanticOutput.topic || "Tuition Session Notes",
         classwork: semanticOutput.classwork || "",
         homework: semanticOutput.homework || "",
@@ -309,9 +333,8 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       const newContext: ActiveSessionContext = {
         studentId: student.id,
         studentName: student.name,
-        sessionId: session.id,
-        date: session.date,
-        scheduleId: session.scheduleId,
+        sessionId: targetSessionId,
+        date: targetDate,
       };
 
       safeRevalidate(`/students/${student.id}`);
@@ -320,7 +343,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         ok: true,
         state: "RESOLVED",
         actionType: "ADD_SESSION_NOTE",
-        message: `Saved notes/homework for ${student.name} on ${formatDisplayDate(session.date)}.`,
+        message: `Saved notes/homework for ${student.name} on ${formatDisplayDate(targetDate)}.`,
         activeContext: newContext,
         llmUsed: modelName,
       };
@@ -723,7 +746,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         studentId: student.id,
         studentName: student.name,
         sessionId: "",
-        date: activeContext?.date || getTodayDateKey(),
+        date: "",
         scheduleId: "",
       };
 
@@ -797,6 +820,16 @@ async function resolveStudentWithContextPriority(
   };
 }
 
+function hasExplicitDateMention(dateRef: string | null | undefined, fullPrompt: string): boolean {
+  const combined = `${dateRef ?? ""} ${fullPrompt ?? ""}`.toLowerCase();
+  return (
+    /\b(yesterday|yesterdy|yestarday|yesturday|yest|today|tday|toda|tomorrow|tomorow|tommorow|tomm|tomn|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i.test(combined) ||
+    /\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b/i.test(combined) ||
+    /\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+\d{1,2}(?:st|nd|rd|th)?\b/i.test(combined) ||
+    /\b\d{4}-\d{2}-\d{2}\b/.test(combined)
+  );
+}
+
 function resolveDatesWithContextPriority(
   explicitDates: string[] | null | undefined,
   dateRef: string | null | undefined,
@@ -810,12 +843,8 @@ function resolveDatesWithContextPriority(
   }
 
   const multiDates = parseMultipleRelativeDates(dateRef, fullPrompt);
-  const normPrompt = fullPrompt.toLowerCase();
-  const hasExplicitDateWord =
-    dateRef ||
-    /\b(yesterday|yesterdy|yestarday|yesturday|yest|today|tday|toda|tomorrow|tomorow|tommorow|tomm|tomn|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sep|sept|oct|nov|dec|sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat|\d{1,2}(?:st|nd|rd|th)?)\b/i.test(normPrompt);
 
-  if (hasExplicitDateWord && multiDates.length > 0) {
+  if (hasExplicitDateMention(dateRef, fullPrompt) && multiDates.length > 0) {
     return multiDates;
   }
 

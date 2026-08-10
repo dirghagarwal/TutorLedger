@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { Sparkles, Send, Loader2, AlertTriangle, CheckCircle2, HelpCircle, XCircle, Trash2 } from "lucide-react";
+import { Sparkles, Send, Loader2, AlertTriangle, CheckCircle2, HelpCircle, XCircle, Trash2, History } from "lucide-react";
 
 import { processAiCommand, type AiCommandResult, type ConversationMessage, type ActiveSessionContext } from "@/app/actions/ai";
 import { deleteSessionAction } from "@/app/actions/sessions";
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
+import { formatDisplayDate } from "@/lib/utils/date";
 import { PaymentMethod, PaymentStatus } from "@/types/payment";
 
 const samplePrompts = [
@@ -23,6 +24,16 @@ const samplePrompts = [
   "Delete Viraj Wednesday class",
 ];
 
+export interface RecentCommandItem {
+  id: string;
+  prompt: string;
+  message: string;
+  studentName?: string;
+  date?: string;
+  actionType?: string;
+  result: AiCommandResult;
+}
+
 export default function CommandBar() {
   const router = useRouter();
   const { toast } = useToast();
@@ -30,9 +41,10 @@ export default function CommandBar() {
   const [isPending, startTransition] = useTransition();
   const [result, setResult] = useState<AiCommandResult | null>(null);
 
-  // Conversational History & Retained Active Session Context State
+  // Conversational History, Active Context & Recent Commands State
   const [history, setHistory] = useState<ConversationMessage[]>([]);
   const [activeContext, setActiveContext] = useState<ActiveSessionContext | null>(null);
+  const [recentCommands, setRecentCommands] = useState<RecentCommandItem[]>([]);
 
   // Strong Student Deletion State
   const [strongDeleteStudent, setStrongDeleteStudent] = useState<{
@@ -56,12 +68,24 @@ export default function CommandBar() {
         setActiveContext(res.activeContext);
       }
 
+      const assistantMsg = { role: "assistant" as const, content: res.message };
+      setHistory([...newHistory, assistantMsg]);
+
       if (res.ok && res.state === "RESOLVED") {
         toast({ title: "AI Command Executed", variant: "success" });
-        setHistory([...newHistory, { role: "assistant", content: res.message }]);
+        setRecentCommands((prev) => [
+          {
+            id: crypto.randomUUID(),
+            prompt: inputPrompt,
+            message: res.message,
+            studentName: res.activeContext?.studentName,
+            date: res.activeContext?.date,
+            actionType: res.actionType,
+            result: res,
+          },
+          ...prev.filter((item) => item.prompt !== inputPrompt),
+        ].slice(0, 5));
         router.refresh();
-      } else {
-        setHistory([...newHistory, { role: "assistant", content: res.message }]);
       }
     });
   }
@@ -197,16 +221,67 @@ export default function CommandBar() {
         </div>
 
         <div className="flex items-center gap-2">
-          {activeContext && (
-            <Badge variant="outline" className="text-[10px] font-mono border-primary/30 text-primary bg-primary/5">
-              Target: {activeContext.studentName} ({activeContext.date})
-            </Badge>
+          {activeContext?.studentName ? (
+            <div className="flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-2.5 py-1 text-xs text-primary font-medium">
+              <Sparkles className="size-3.5" />
+              <span>
+                Current context: {activeContext.studentName}
+                {activeContext.date && ` • ${formatDisplayDate(activeContext.date)}`}
+              </span>
+              <button
+                type="button"
+                onClick={() => setActiveContext(null)}
+                className="ml-1 text-primary/70 hover:text-primary"
+                title="Clear active context"
+              >
+                ✕
+              </button>
+            </div>
+          ) : (
+            <span className="text-[11px] font-mono text-muted-foreground">
+              No active class context
+            </span>
           )}
-          <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
-            ✨ Powered by Gemini
-          </span>
         </div>
       </div>
+
+      {/* Recent Commands Section */}
+      {recentCommands.length > 0 && (
+        <div className="rounded-xl border border-border/50 bg-card/40 p-3 space-y-2">
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span className="font-semibold text-foreground flex items-center gap-1.5">
+              <History className="size-3.5 text-primary" /> Recent Commands
+            </span>
+            <button
+              type="button"
+              onClick={() => setRecentCommands([])}
+              className="text-[10px] hover:underline text-muted-foreground hover:text-foreground"
+            >
+              Clear
+            </button>
+          </div>
+          <div className="space-y-1.5">
+            {recentCommands.slice(0, 4).map((item) => (
+              <div
+                key={item.id}
+                onClick={() => setResult(item.result)}
+                className="flex items-center justify-between gap-3 p-2 rounded-lg border border-border/40 bg-surface/60 hover:bg-surface text-xs cursor-pointer transition-colors"
+                title="Click to view details (will not re-execute command)"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-foreground truncate">&ldquo;{item.prompt}&rdquo;</p>
+                  <p className="text-[11px] text-muted-foreground truncate">{item.message}</p>
+                </div>
+                {item.studentName && (
+                  <Badge variant="outline" className="text-[10px] shrink-0 font-mono border-primary/20 text-primary bg-primary/5">
+                    {item.studentName} {item.date ? `• ${item.date}` : ""}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* AI Processing Status */}
       {isPending && (
