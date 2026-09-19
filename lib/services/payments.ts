@@ -6,6 +6,7 @@ import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
 import { getTodayDateKey } from "@/lib/utils/date";
+import { calculateLedgerBalance, calculateMonthlyAccruedFee } from "@/lib/services/billing";
 import type { Session } from "@/types/session";
 
 function isCollected(payment: Payment): boolean {
@@ -54,50 +55,83 @@ export async function getOutstandingBalance(
   allSessions?: readonly Session[],
   allAttendance?: readonly Attendance[]
 ): Promise<number> {
+  const { balance } = await getLedgerSnapshot(
+    studentId,
+    allPayments,
+    allStudents,
+    allSessions,
+    allAttendance,
+  );
+  return balance.outstanding;
+}
+
+export async function getCreditBalance(
+  studentId: string,
+  allPayments?: readonly Payment[],
+  allStudents?: readonly Student[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[]
+): Promise<number> {
+  const { balance } = await getLedgerSnapshot(
+    studentId,
+    allPayments,
+    allStudents,
+    allSessions,
+    allAttendance,
+  );
+  return balance.credit;
+}
+
+async function getLedgerSnapshot(
+  studentId: string,
+  allPayments?: readonly Payment[],
+  allStudents?: readonly Student[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[]
+): Promise<{ balance: ReturnType<typeof calculateLedgerBalance> }> {
   const records = await resolvePayments(allPayments);
   const student = allStudents
     ? allStudents.find((s) => s.id === studentId)
     : await findStudentById(studentId);
 
-  const pendingPaymentsAmount = sumPayments(
-    records.filter(
-      (payment) =>
-        payment.studentId === studentId && payment.status === PaymentStatus.PENDING
-    )
+  if (!student) return { balance: calculateLedgerBalance(0, 0) };
+
+  const sessions = allSessions ? [...allSessions] : await findSessions();
+  const attendanceRecords =
+    allAttendance ? [...allAttendance] : await findAttendance();
+
+  const studentSessionIds = new Set(
+    sessions.filter((session) => session.studentId === studentId).map((session) => session.id)
   );
 
-  if (!student) return pendingPaymentsAmount;
+  const collected = getRevenueByStudentSync(studentId, records);
 
   if (student.feeType === FeeType.CLASSWISE) {
-    const attendanceRecords = allAttendance ? [...allAttendance] : await findAttendance();
-    const sessions = allSessions ? [...allSessions] : await findSessions();
-
-    const studentSessionIds = new Set(
-      sessions.filter((s) => s.studentId === studentId).map((s) => s.id)
-    );
-
     const attendedCount = attendanceRecords.filter(
-      (a) => studentSessionIds.has(a.sessionId) && a.status === AttendanceStatus.PRESENT
+      (attendance) =>
+        studentSessionIds.has(attendance.sessionId) &&
+        attendance.status === AttendanceStatus.PRESENT
     ).length;
-
     const accruedFees = attendedCount * student.fee;
-    const paidFees = getRevenueByStudentSync(studentId, records);
-    const balanceFromAccrual = Math.max(0, accruedFees - paidFees);
-
-    return Math.max(balanceFromAccrual, pendingPaymentsAmount);
+    return { balance: calculateLedgerBalance(accruedFees, collected) };
   }
 
   const currentMonthKey = getTodayDateKey().slice(0, 7);
-  const monthlyCollected = sumPayments(
-    records.filter(
-      (payment) =>
-        payment.studentId === studentId &&
-        isCollected(payment) &&
-        payment.date.slice(0, 7) === currentMonthKey
-    )
+  const historicalDates = [
+    ...sessions
+      .filter((session) => session.studentId === studentId)
+      .map((session) => session.date),
+    ...records
+      .filter((payment) => payment.studentId === studentId)
+      .map((payment) => payment.date),
+  ];
+  const accruedFees = calculateMonthlyAccruedFee(
+    student.fee,
+    currentMonthKey,
+    historicalDates
   );
-  const currentMonthBalance = Math.max(0, student.fee - monthlyCollected);
-  return Math.max(currentMonthBalance, pendingPaymentsAmount);
+
+  return { balance: calculateLedgerBalance(accruedFees, collected) };
 }
 
 function getRevenueByStudentSync(studentId: string, records: readonly Payment[]): number {
