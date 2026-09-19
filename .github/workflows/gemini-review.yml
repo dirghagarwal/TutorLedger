@@ -60,7 +60,12 @@ jobs:
           Each finding must include file/path, concrete issue, impact, and fix direction.
           Do not score or praise the code. Do not invent findings.
           "@
-          agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m | Out-File -Encoding utf8 gemini-review.md
+          $agy = Join-Path $env:USERPROFILE "AppData\Local\agy\bin\agy.exe"
+          if (-not (Test-Path -LiteralPath $agy)) {
+            throw "Antigravity CLI not found at $agy"
+          }
+          & $agy --version
+          & $agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m | Out-File -Encoding utf8 gemini-review.md
 
       - name: Comment review on PR
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
