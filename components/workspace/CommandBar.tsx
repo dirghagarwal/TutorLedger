@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { useToast } from "@/components/ui/toast";
 import { formatDisplayDate } from "@/lib/utils/date";
 import { PaymentMethod, PaymentStatus } from "@/types/payment";
+import { getTodayDateKey } from "@/lib/utils/date";
 
 const samplePrompts = [
   "Took Aahan class today",
@@ -146,14 +147,14 @@ export default function CommandBar() {
 
   async function handleConfirmPayment(data: Record<string, unknown>) {
     startTransition(async () => {
-      const today = new Date().toISOString().slice(0, 10);
+      const paymentDate = String(data.date || getTodayDateKey());
       const res = await recordPayment({
         studentId: String(data.studentId),
         amount: Number(data.amount),
-        date: today,
+        date: paymentDate,
         method: (data.method as PaymentMethod) || PaymentMethod.UPI,
         status: PaymentStatus.PAID,
-        billingPeriod: new Date().toLocaleString("en-US", { month: "long", year: "numeric" }),
+        billingPeriod: new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${paymentDate}T12:00:00Z`)),
         notes: String(data.notes || "Recorded via TutorLedger AI"),
       });
 
