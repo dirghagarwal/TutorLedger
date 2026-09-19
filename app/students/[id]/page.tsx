@@ -229,6 +229,7 @@ export default async function StudentProfilePage({
 
           <div className="mt-6">
             <PaymentHistory
+              creditBalance={creditBalance}
               lifetimePayments={lifetimePayments}
               outstandingBalance={outstandingBalance}
               payments={studentPayments}
