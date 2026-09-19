@@ -17,6 +17,7 @@ import { FeeType, type Student } from "@/types/students";
 interface StudentBalanceItem {
   student: Student;
   outstandingBalance: number;
+  creditBalance: number;
   lifetimePaid: number;
 }
 
@@ -143,7 +144,7 @@ export default function PaymentsClient({
           {initialStudentBalances.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">No students found.</p>
           ) : (
-            initialStudentBalances.map(({ student, outstandingBalance, lifetimePaid }) => (
+            initialStudentBalances.map(({ student, outstandingBalance, creditBalance, lifetimePaid }) => (
               <div key={student.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div
@@ -165,7 +166,10 @@ export default function PaymentsClient({
                     <p className={`text-sm font-bold ${outstandingBalance > 0 ? "text-warning" : "text-success"}`}>
                       {outstandingBalance > 0 ? `${currencyFormatter.format(outstandingBalance)} due` : "Fully Paid"}
                     </p>
-                    <p className="text-xs text-muted-foreground">Paid: {currencyFormatter.format(lifetimePaid)}</p>
+                    <p className="text-xs text-muted-foreground">
+                      Paid: {currencyFormatter.format(lifetimePaid)}
+                      {creditBalance > 0 ? " · Credit: " + currencyFormatter.format(creditBalance) : ""}
+                    </p>
                   </div>
 
                   <Button
