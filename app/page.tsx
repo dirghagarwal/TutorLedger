@@ -53,6 +53,7 @@ export default async function Home() {
     studentColor: students.find((student) => student.id === session.studentId)?.color ?? "var(--avatar-fallback)",
     attendance: attendanceBySession.get(session.id) ?? null,
     payments: payments.filter((payment) => payment.sessionId === session.id),
+    feeType: students.find((student) => student.id === session.studentId)?.feeType ?? "MONTHLY",
   }));
 
   return (
