@@ -11,6 +11,7 @@ import type { MonthCalendarDay } from "@/lib/services/sessions";
 import type { Session } from "@/types/session";
 import type { CalendarStudent } from "@/components/calendar/CalendarDay";
 import type { SessionDetailsRecord } from "@/components/sessions/SessionDetailsSheet";
+import { FeeType } from "@/types/students";
 
 interface MobileMonthCalendarProps {
   calendarDays: readonly MonthCalendarDay[];
@@ -220,7 +221,7 @@ export default function MobileMonthCalendar({
                   payments: [],
                   notes: [],
                   attachments: [],
-                  feeType: student?.feeType ?? "MONTHLY",
+                  feeType: student?.feeType ?? FeeType.MONTHLY,
                 };
 
                 return (
