@@ -101,3 +101,13 @@ export async function createPaymentWithAllocations(
   });
   return toPayment(record);
 }
+
+
+export async function findPaymentAllocationsBySessionIds(sessionIds: string[]): Promise<PaymentAllocation[]> {
+  if (sessionIds.length === 0) return [];
+  const records = await prisma.paymentAllocation.findMany({
+    where: { sessionId: { in: sessionIds } },
+    orderBy: [{ sessionId: "asc" }, { paymentId: "asc" }],
+  });
+  return records.map(toPaymentAllocation);
+}
