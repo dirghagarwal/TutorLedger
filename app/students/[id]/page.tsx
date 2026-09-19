@@ -86,7 +86,7 @@ export default async function StudentProfilePage({
   const recentPayment = await getRecentPayment(student.id, allPayments);
   const studentSessions = allSessions.filter((s) => s.studentId === student.id);
 
-  const [sessionNotes, sessionAttachments] = await Promise.all([
+  const [sessionNotes, sessionAttachments, paymentAllocations] = await Promise.all([
     findSessionNotesBySessionIds(studentSessions.map((session) => session.id)),
     findAttachmentsBySessionIds(studentSessions.map((session) => session.id)),
     findPaymentAllocationsBySessionIds(studentSessions.map((session) => session.id)),
@@ -95,14 +95,10 @@ export default async function StudentProfilePage({
   const paymentsBySession = Object.fromEntries(
     studentSessions.map((session) => [
       session.id,
-      allPayments.filter((payment) => payment.sessionId === session.id),
-    ])
-  );
-  // Allocation records are loaded in one query so class-level payment coverage can be surfaced without N+1 reads.
-  const allocationsBySession = Object.fromEntries(
-    studentSessions.map((session) => [
-      session.id,
-      paymentAllocations.filter((allocation) => allocation.sessionId === session.id),
+      allPayments.filter((payment) =>
+        payment.sessionId === session.id ||
+        paymentAllocations.some((allocation) => allocation.sessionId === session.id && allocation.paymentId === payment.id)
+      ),
     ])
   );
   const notesBySession = Object.fromEntries(
