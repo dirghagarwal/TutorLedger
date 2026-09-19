@@ -3,7 +3,7 @@ import { findPayments } from "@/lib/repositories/payments";
 import { findSessions } from "@/lib/repositories/sessions";
 import { findStudentById, findStudents } from "@/lib/repositories/students";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
-import { PaymentStatus, type Payment } from "@/types/payment";
+import { BillingPeriod, PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
 import { getTodayDateKey } from "@/lib/utils/date";
 import type { Session } from "@/types/session";
@@ -58,8 +58,8 @@ function monthIndex(monthKey: string): number {
 }
 
 function monthKeyFromDate(date: string): string | null {
-  const match = date.match(/^(\\d{4})-(\\d{2})-\\d{2}$/);
-  return match ? \`${1}-${2}\` : null;
+  const monthKey = date.slice(0, 7);
+  return /^\d{4}-\d{2}$/.test(monthKey) ? monthKey : null;
 }
 
 function getMonthlyAccrual(
@@ -117,7 +117,7 @@ function calculateBalance(
       records.filter(
         (payment) =>
           payment.studentId === student.id &&
-          payment.billingPeriod === "CLASSWISE" &&
+          payment.billingPeriod === BillingPeriod.CLASSWISE &&
           isCollected(payment),
       ),
     );
@@ -140,7 +140,7 @@ function calculateBalance(
     records.filter(
       (payment) =>
         payment.studentId === student.id &&
-        payment.billingPeriod === "MONTHLY" &&
+        payment.billingPeriod === BillingPeriod.MONTHLY &&
         isCollected(payment) &&
         payment.date.slice(0, 7) <= currentMonthKey,
     ),
