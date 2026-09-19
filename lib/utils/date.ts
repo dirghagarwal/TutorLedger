@@ -145,6 +145,39 @@ export function parseRelativeDate(
   const todayDateObj = new Date(`${todayKey}T12:00:00.000Z`);
   const currentDayOfWeek = todayDateObj.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
+  // Explicit week qualifiers are handled before the generic weekday fallback.
+  const lastWeekdayExplicit = cleaned.match(
+    /\blast(?:\s+week(?:'s)?)?\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i
+  );
+  if (lastWeekdayExplicit?.[1]) {
+    const targetDay = WEEKDAYS[lastWeekdayExplicit[1].toLowerCase()];
+    if (targetDay !== undefined) {
+      const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      const monday = new Date(todayDateObj);
+      monday.setUTCDate(monday.getUTCDate() - daysSinceMonday - 7);
+      const offsetFromMonday = targetDay === 0 ? 6 : targetDay - 1;
+      const targetDate = new Date(monday);
+      targetDate.setUTCDate(monday.getUTCDate() + offsetFromMonday);
+      return getDateKey(targetDate);
+    }
+  }
+
+  const thisWeekdayExplicit = cleaned.match(
+    /\bthis\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i
+  );
+  if (thisWeekdayExplicit?.[1]) {
+    const targetDay = WEEKDAYS[thisWeekdayExplicit[1].toLowerCase()];
+    if (targetDay !== undefined) {
+      const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+      const monday = new Date(todayDateObj);
+      monday.setUTCDate(monday.getUTCDate() - daysSinceMonday);
+      const offsetFromMonday = targetDay === 0 ? 6 : targetDay - 1;
+      const targetDate = new Date(monday);
+      targetDate.setUTCDate(monday.getUTCDate() + offsetFromMonday);
+      return getDateKey(targetDate);
+    }
+  }
+
   // 3. Weekday with Future Modifier ("next Wednesday", "next Monday")
   const nextWeekdayMatch = cleaned.match(/\bnext\s+(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i);
   if (nextWeekdayMatch?.[1]) {
