@@ -12,3 +12,5 @@ CREATE INDEX "PaymentAllocation_paymentId_idx" ON "PaymentAllocation"("paymentId
 
 ALTER TABLE "PaymentAllocation" ADD CONSTRAINT "PaymentAllocation_paymentId_fkey" FOREIGN KEY ("paymentId") REFERENCES "Payment"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 ALTER TABLE "PaymentAllocation" ADD CONSTRAINT "PaymentAllocation_sessionId_fkey" FOREIGN KEY ("sessionId") REFERENCES "Session"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+CREATE UNIQUE INDEX "Session_studentId_date_key" ON "Session"("studentId", "date");
