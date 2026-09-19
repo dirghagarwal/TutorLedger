@@ -116,10 +116,12 @@ export function parseRelativeDate(
     const day = Number(naturalMatch1[1]);
     const monthStr = naturalMatch1[2]?.toLowerCase() ?? "";
     const month = MONTHS[monthStr];
-    const year = naturalMatch1[3] ? Number(naturalMatch1[3]) : 2026;
+    const year = naturalMatch1[3] ? Number(naturalMatch1[3]) : Number(getTodayDateKey().slice(0, 4));
     if (month !== undefined && !Number.isNaN(day)) {
       const d = new Date(Date.UTC(year, month, day));
-      return getDateKey(d);
+      if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+        return getDateKey(d);
+      }
     }
   }
 
@@ -128,10 +130,12 @@ export function parseRelativeDate(
     const monthStr = naturalMatch2[1]?.toLowerCase() ?? "";
     const day = Number(naturalMatch2[2]);
     const month = MONTHS[monthStr];
-    const year = naturalMatch2[3] ? Number(naturalMatch2[3]) : 2026;
+    const year = naturalMatch2[3] ? Number(naturalMatch2[3]) : Number(getTodayDateKey().slice(0, 4));
     if (month !== undefined && !Number.isNaN(day)) {
       const d = new Date(Date.UTC(year, month, day));
-      return getDateKey(d);
+      if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+        return getDateKey(d);
+      }
     }
   }
 
@@ -153,14 +157,36 @@ export function parseRelativeDate(
     }
   }
 
-  // 4. Weekday with Past/Recent Modifier ("Wednesday", "on Wednesday", "last Wednesday", "this Wednesday")
-  const weekdayMatch = cleaned.match(/\b(?:last\s+|this\s+|on\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i);
-  if (weekdayMatch?.[1]) {
-    const targetDay = WEEKDAYS[weekdayMatch[1].toLowerCase()];
+  // 4. Weekday modifiers.
+  // "this Wednesday" means Wednesday in the current Mon-Sun week.
+  // "last Wednesday" / "last week Wednesday" means the same weekday in the previous Mon-Sun week.
+  // A bare weekday keeps the legacy behavior: the most recent occurrence.
+  const qualifiedWeekdayMatch = cleaned.match(
+    /\b(?:(last\s+week(?:'s)?|last|this)\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i
+  );
+  if (qualifiedWeekdayMatch?.[2]) {
+    const modifier = qualifiedWeekdayMatch[1]?.toLowerCase() ?? "";
+    const targetDay = WEEKDAYS[qualifiedWeekdayMatch[2].toLowerCase()];
     if (targetDay !== undefined) {
-      const diff = (currentDayOfWeek - targetDay + 7) % 7;
       const targetDate = new Date(todayDateObj);
-      targetDate.setUTCDate(todayDateObj.getUTCDate() - diff);
+
+      if (modifier === "this") {
+        const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+        const monday = new Date(todayDateObj);
+        monday.setUTCDate(monday.getUTCDate() - daysSinceMonday);
+        const offsetFromMonday = targetDay === 0 ? 6 : targetDay - 1;
+        targetDate.setUTCDate(monday.getUTCDate() + offsetFromMonday);
+        return getDateKey(targetDate);
+      }
+
+      const daysSinceTarget = (currentDayOfWeek - targetDay + 7) % 7;
+      if (modifier === "last" || modifier === "last week's") {
+        const daysBack = daysSinceTarget === 0 ? 7 : daysSinceTarget;
+        targetDate.setUTCDate(targetDate.getUTCDate() - daysBack - 7);
+        return getDateKey(targetDate);
+      }
+
+      targetDate.setUTCDate(targetDate.getUTCDate() - daysSinceTarget);
       return getDateKey(targetDate);
     }
   }
@@ -229,14 +255,16 @@ export function parseMultipleRelativeDates(
     const dayNumbers = multiDayMonthEndMatch[1].match(/\d{1,2}/g);
     const monthStr = multiDayMonthEndMatch[2].toLowerCase();
     const month = MONTHS[monthStr];
-    const year = multiDayMonthEndMatch[3] ? Number(multiDayMonthEndMatch[3]) : 2026;
+    const year = multiDayMonthEndMatch[3] ? Number(multiDayMonthEndMatch[3]) : Number(getTodayDateKey().slice(0, 4));
     if (dayNumbers && month !== undefined) {
       const dates: string[] = [];
       for (const numStr of dayNumbers) {
         const day = Number(numStr);
         if (!Number.isNaN(day) && day >= 1 && day <= 31) {
           const d = new Date(Date.UTC(year, month, day));
-          dates.push(getDateKey(d));
+          if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+            dates.push(getDateKey(d));
+          }
         }
       }
       if (dates.length > 0) return [...new Set(dates)];
@@ -251,14 +279,16 @@ export function parseMultipleRelativeDates(
     const monthStr = multiDayMonthStartMatch[1].toLowerCase();
     const dayNumbers = multiDayMonthStartMatch[2].match(/\d{1,2}/g);
     const month = MONTHS[monthStr];
-    const year = multiDayMonthStartMatch[3] ? Number(multiDayMonthStartMatch[3]) : 2026;
+    const year = multiDayMonthStartMatch[3] ? Number(multiDayMonthStartMatch[3]) : Number(getTodayDateKey().slice(0, 4));
     if (dayNumbers && month !== undefined) {
       const dates: string[] = [];
       for (const numStr of dayNumbers) {
         const day = Number(numStr);
         if (!Number.isNaN(day) && day >= 1 && day <= 31) {
           const d = new Date(Date.UTC(year, month, day));
-          dates.push(getDateKey(d));
+          if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
+            dates.push(getDateKey(d));
+          }
         }
       }
       if (dates.length > 0) return [...new Set(dates)];
