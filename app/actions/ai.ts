@@ -23,7 +23,7 @@ import { aiSemanticOutputSchema, type AiSemanticOutput } from "@/lib/validations
 import { AttendanceStatus } from "@/types/attendance";
 import { BillingPeriod, PaymentMethod } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
-import type { Student } from "@/types/students";
+import { FeeType, type Student } from "@/types/students";
 
 function safeRevalidate(path: string) {
   try {
