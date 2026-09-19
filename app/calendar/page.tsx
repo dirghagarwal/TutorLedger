@@ -19,7 +19,7 @@ import type { Attachment } from "@/types/attachment";
 import type { Attendance } from "@/types/attendance";
 import type { Payment } from "@/types/payment";
 import type { SessionNote } from "@/types/session-note";
-import type { Student } from "@/types/students";
+import { FeeType, type Student } from "@/types/students";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +74,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           payments: matchedPayments,
           notes: matchedNotes,
           attachments: matchedAttachments,
-          feeType: students.find((student) => student.id === session.studentId)?.feeType ?? "MONTHLY",
+          feeType: students.find((student) => student.id === session.studentId)?.feeType ?? FeeType.MONTHLY,
         },
       ];
     })
