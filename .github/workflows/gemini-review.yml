@@ -32,6 +32,32 @@ jobs:
           $lines = (Get-Content .gemini-review-diff.txt | Measure-Object -Line).Lines
           "Review diff lines: $lines"
 
+      - name: Configure Antigravity headless permissions
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $settingsDir = Join-Path $env:USERPROFILE ".gemini\antigravity-cli"
+          $settingsPath = Join-Path $settingsDir "settings.json"
+          New-Item -ItemType Directory -Force -Path $settingsDir | Out-Null
+          if (Test-Path -LiteralPath $settingsPath) {
+            Copy-Item -LiteralPath $settingsPath -Destination "$settingsPath.ci-backup" -Force
+            $settings = Get-Content -Raw -LiteralPath $settingsPath | ConvertFrom-Json
+          } else {
+            $settings = [pscustomobject]@{}
+          }
+          if (-not $settings.PSObject.Properties["permissions"]) {
+            $settings | Add-Member -NotePropertyName permissions -NotePropertyValue ([pscustomobject]@{})
+          }
+          if (-not $settings.permissions.PSObject.Properties["allow"]) {
+            $settings.permissions | Add-Member -NotePropertyName allow -NotePropertyValue @()
+          }
+          $allow = @($settings.permissions.allow)
+          if ($allow -notcontains "command(git)") {
+            $allow += "command(git)"
+          }
+          $settings.permissions.allow = $allow
+          $settings | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 -LiteralPath $settingsPath
+          "Configured Antigravity allow rule: command(git)"
+
       - name: Run Gemini Pro review
         shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
         run: |
