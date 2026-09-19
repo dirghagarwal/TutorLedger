@@ -36,10 +36,27 @@ jobs:
           gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/tsc-comment.md
       - run: npm run lint
       - name: Run npm test
+        id: tests
+        continue-on-error: true
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
           DIRECT_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
-        run: npm test
+        run: npm test 2>&1 | tee /tmp/test-output.txt
+      - name: Diagnose tests on pull requests
+        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "## Temporary test diagnostics"
+            echo '```text'
+            cat /tmp/test-output.txt
+            echo '```'
+          } > /tmp/test-comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/test-comment.md
+      - name: Fail when tests fail
+        if: steps.tests.outcome == 'failure'
+        run: exit 1
       - name: Run npm run build
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
