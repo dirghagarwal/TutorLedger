@@ -22,6 +22,14 @@ function failure(error: unknown): ActionResult {
   return { ok: false, error: error instanceof Error ? error.message : "Unable to save student." };
 }
 
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Server actions can also be invoked from non-request test/CLI contexts.
+  }
+}
+
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
     const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
