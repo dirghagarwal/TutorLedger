@@ -113,13 +113,13 @@ export async function createPaymentWithAllocations(
       input.billingPeriod === BillingPeriod.CLASSWISE &&
       (input.status === PaymentStatus.PAID || input.status === PaymentStatus.PARTIAL)
     ) {
-      const student = await tx.student.findUnique({
+      const student: { fee: number } | null = await tx.student.findUnique({
         where: { id: input.studentId },
         select: { fee: true },
       });
 
       if (student) {
-        const candidateSessions = await tx.session.findMany({
+        const candidateSessions: Array<{ id: string; date: string; startTime: string }> = await tx.session.findMany({
           where: {
             studentId: input.studentId,
             attendance: { is: { status: "PRESENT" } },
@@ -130,7 +130,7 @@ export async function createPaymentWithAllocations(
         });
 
         const candidateIds = candidateSessions.map((session) => session.id);
-        const previous = candidateIds.length
+        const previous: Array<{ sessionId: string; _sum: { amount: number | null } }> = candidateIds.length
           ? await tx.paymentAllocation.groupBy({
               by: ["sessionId"],
               where: { sessionId: { in: candidateIds } },
