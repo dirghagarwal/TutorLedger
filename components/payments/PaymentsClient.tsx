@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { PaymentStatus, type Payment } from "@/types/payment";
-import type { Student } from "@/types/students";
+import { FeeType, type Student } from "@/types/students";
 
 interface StudentBalanceItem {
   student: Student;
@@ -277,6 +277,7 @@ export default function PaymentsClient({
             if (!open) setSelectedStudentForPayment(null);
           }}
           onSubmit={handlePaymentSubmit}
+          defaultBillingPeriod={selectedStudentForPayment.feeType === FeeType.CLASSWISE ? "CLASSWISE" : "MONTHLY"}
         />
       )}
     </div>
