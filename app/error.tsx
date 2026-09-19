@@ -5,6 +5,7 @@ import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 
 export default function Error({
+  error,
   reset,
 }: Readonly<{
   error: Error & { digest?: string };
