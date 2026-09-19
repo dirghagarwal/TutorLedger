@@ -93,13 +93,18 @@ export default async function StudentProfilePage({
   ]);
 
   const paymentsBySession = Object.fromEntries(
-    studentSessions.map((session) => [
-      session.id,
-      allPayments.filter((payment) =>
-        payment.sessionId === session.id ||
-        paymentAllocations.some((allocation) => allocation.sessionId === session.id && allocation.paymentId === payment.id)
-      ),
-    ])
+    studentSessions.map((session) => {
+      const directPayments = allPayments.filter((payment) => payment.sessionId === session.id);
+      const allocatedPayments = paymentAllocations
+        .filter((allocation) => allocation.sessionId === session.id)
+        .map((allocation) => {
+          const payment = allPayments.find((candidate) => candidate.id === allocation.paymentId);
+          return payment ? { ...payment, amount: allocation.amount } : null;
+        })
+        .filter((payment): payment is typeof allPayments[number] => payment !== null);
+      const seen = new Set(directPayments.map((payment) => payment.id));
+      return [session.id, [...directPayments, ...allocatedPayments.filter((payment) => !seen.has(payment.id))]];
+    })
   );
   const notesBySession = Object.fromEntries(
     studentSessions.map((session) => [session.id, sessionNotes.filter((note) => note.sessionId === session.id)])
