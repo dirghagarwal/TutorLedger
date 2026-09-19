@@ -131,7 +131,7 @@ export function parseRelativeDate(
     const monthStr = naturalMatch2[1]?.toLowerCase() ?? "";
     const day = Number(naturalMatch2[2]);
     const month = MONTHS[monthStr];
-    const year = naturalMatch2[3] ? Number(naturalMatch2[3]) : Number(getTodayDateKey().slice(0, 4));
+    const year = naturalMatch2[3] ? Number(naturalMatch2[3]) : Number(getDateKey(now).slice(0, 4));
     if (month !== undefined && !Number.isNaN(day)) {
       const d = new Date(Date.UTC(year, month, day));
       if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
@@ -235,10 +235,11 @@ export function parseRelativeDate(
  */
 export function parseMultipleRelativeDates(
   reference?: string | null,
-  fullPrompt?: string | null
+  fullPrompt?: string | null,
+  now: Date = new Date(),
 ): string[] {
   const rawInput = `${reference ?? ""} ${fullPrompt ?? ""}`.trim();
-  if (!rawInput) return [getTodayDateKey()];
+  if (!rawInput) return [getDateKey(now)];
 
   const cleaned = sanitizePromptForDates(rawInput);
 
@@ -256,7 +257,7 @@ export function parseMultipleRelativeDates(
     const dayNumbers = multiDayMonthEndMatch[1].match(/\d{1,2}/g);
     const monthStr = multiDayMonthEndMatch[2].toLowerCase();
     const month = MONTHS[monthStr];
-    const year = multiDayMonthEndMatch[3] ? Number(multiDayMonthEndMatch[3]) : Number(getTodayDateKey().slice(0, 4));
+    const year = multiDayMonthEndMatch[3] ? Number(multiDayMonthEndMatch[3]) : Number(getDateKey(now).slice(0, 4));
     if (dayNumbers && month !== undefined) {
       const dates: string[] = [];
       for (const numStr of dayNumbers) {
@@ -309,5 +310,5 @@ export function parseMultipleRelativeDates(
     if (parsedDates.length > 0) return [...new Set(parsedDates)];
   }
 
-  return [parseRelativeDate(reference, fullPrompt)];
+  return [parseRelativeDate(reference, fullPrompt, now)];
 }
