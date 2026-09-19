@@ -409,6 +409,14 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       const student = studentRes.student;
       const amount = semanticOutput.amount || 1000;
       const method = semanticOutput.method || PaymentMethod.UPI;
+      const paymentDate =
+        resolveDatesWithContextPriority(
+          semanticOutput.dates,
+          semanticOutput.dateReference,
+          trimmed,
+          activeContext,
+          studentRes.isStudentSwitch
+        )[0] ?? getTodayDateKey();
 
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_RECORD_PAYMENT" });
 
@@ -417,19 +425,20 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         state: "REQUIRES_CONFIRMATION",
         requiresConfirmation: true,
         actionType: "RECORD_PAYMENT",
-        message: `⚠️ Record payment of ₹${amount} (${method}) for student "${student.name}"?`,
+        message: `⚠️ Record payment of ₹${amount} (${method}) for student "${student.name}" on ${formatDisplayDate(paymentDate)}?`,
         confirmationPayload: {
           action: "CONFIRM_RECORD_PAYMENT",
           studentId: student.id,
           studentName: student.name,
           token,
-          details: `Amount: ₹${amount} · Method: ${method} · Notes: Recorded via TutorLedger AI`,
+          details: `Amount: ₹${amount} · Date: ${paymentDate} · Method: ${method} · Notes: Recorded via TutorLedger AI`,
         },
         data: {
           studentId: student.id,
           amount,
           method,
           notes: "Recorded via TutorLedger AI",
+          date: paymentDate,
           token,
         },
         activeContext,
