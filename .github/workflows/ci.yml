@@ -21,42 +21,12 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
-      - name: Diagnose TypeScript on pull requests
-        if: failure() && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          npx tsc --noEmit --pretty false > /tmp/tsc-output.txt 2>&1 || true
-          {
-            echo "## Temporary TypeScript diagnostics"
-            echo '```text'
-            cat /tmp/tsc-output.txt
-            echo '```'
-          } > /tmp/tsc-comment.md
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/tsc-comment.md
       - run: npm run lint
       - name: Run npm test
-        id: tests
-        continue-on-error: true
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
           DIRECT_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
-        run: npm test 2>&1 | tee /tmp/test-output.txt
-      - name: Diagnose tests on pull requests
-        if: steps.tests.outcome == 'failure' && github.event_name == 'pull_request'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          {
-            echo "## Temporary test diagnostics"
-            echo '```text'
-            cat /tmp/test-output.txt
-            echo '```'
-          } > /tmp/test-comment.md
-          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/test-comment.md
-      - name: Fail when tests fail
-        if: steps.tests.outcome == 'failure'
-        run: exit 1
+        run: npm test
       - name: Run npm run build
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public
