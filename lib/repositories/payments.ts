@@ -33,8 +33,7 @@ export async function findPaymentById(id: string): Promise<Payment | null> {
 }
 
 export async function createPayment(input: Payment): Promise<Payment> {
-  const record = await prisma.payment.create({ data: input });
-  return toPayment(record);
+  return createPaymentWithAllocations(input, []);
 }
 
 
@@ -69,28 +68,108 @@ export async function createPaymentWithAllocations(
   allocations: PaymentAllocation[],
 ): Promise<Payment> {
   const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
-    if (allocations.length > 0) {
+    if (input.sessionId) {
+      const linkedSession = await tx.session.findUnique({
+        where: { id: input.sessionId },
+        select: { id: true, studentId: true },
+      });
+      if (!linkedSession || linkedSession.studentId !== input.studentId) {
+        throw new Error("Payment session does not belong to this student.");
+      }
+    }
+
+    let effectiveAllocations = allocations;
+
+    if (input.status === PaymentStatus.PENDING && effectiveAllocations.length > 0) {
+      throw new Error("Pending payments cannot be allocated as collected class payments.");
+    }
+
+    if (effectiveAllocations.length > 0) {
+      const requestedSessionIds = effectiveAllocations.map((allocation) => allocation.sessionId);
+      const uniqueSessionIds = new Set(requestedSessionIds);
+      if (uniqueSessionIds.size !== requestedSessionIds.length) {
+        throw new Error("A payment cannot allocate the same class more than once.");
+      }
+
       const sessions = await tx.session.findMany({
         where: {
-          id: { in: allocations.map((allocation) => allocation.sessionId) },
+          id: { in: requestedSessionIds },
           studentId: input.studentId,
         },
         select: { id: true },
       });
-      if (sessions.length !== allocations.length) {
+      if (sessions.length !== effectiveAllocations.length) {
         throw new Error("One or more payment allocations do not belong to this student.");
       }
 
-      const allocatedTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      const allocatedTotal = effectiveAllocations.reduce(
+        (sum, allocation) => sum + allocation.amount,
+        0
+      );
       if (allocatedTotal > input.amount) {
         throw new Error("Allocated class amounts cannot exceed the payment amount.");
+      }
+    } else if (
+      input.billingPeriod === BillingPeriod.CLASSWISE &&
+      (input.status === PaymentStatus.PAID || input.status === PaymentStatus.PARTIAL)
+    ) {
+      const student: { fee: number } | null = await tx.student.findUnique({
+        where: { id: input.studentId },
+        select: { fee: true },
+      });
+
+      if (student) {
+        const candidateSessions: Array<{ id: string; date: string; startTime: string }> = await tx.session.findMany({
+          where: {
+            studentId: input.studentId,
+            attendance: { is: { status: "PRESENT" } },
+            ...(input.sessionId ? { id: input.sessionId } : {}),
+          },
+          orderBy: [{ date: "asc" }, { startTime: "asc" }],
+          select: { id: true, date: true, startTime: true },
+        });
+
+        const candidateIds = candidateSessions.map((session) => session.id);
+        const previousAllocations = candidateIds.length
+          ? await tx.paymentAllocation.findMany({
+              where: { sessionId: { in: candidateIds } },
+              select: { sessionId: true, amount: true },
+            })
+          : [];
+
+        const previouslyAllocated = new Map<string, number>();
+        for (const allocation of previousAllocations) {
+          previouslyAllocated.set(
+            allocation.sessionId,
+            (previouslyAllocated.get(allocation.sessionId) ?? 0) + allocation.amount
+          );
+        }
+
+        let remaining = input.amount;
+        const generated: PaymentAllocation[] = [];
+        for (const session of candidateSessions) {
+          if (remaining <= 0) break;
+          const alreadyCovered = previouslyAllocated.get(session.id) ?? 0;
+          const sessionDue = Math.max(0, student.fee - alreadyCovered);
+          const allocationAmount = Math.min(remaining, sessionDue);
+          if (allocationAmount > 0) {
+            generated.push({
+              id: crypto.randomUUID(),
+              paymentId: input.id,
+              sessionId: session.id,
+              amount: allocationAmount,
+            });
+            remaining -= allocationAmount;
+          }
+        }
+        effectiveAllocations = generated;
       }
     }
 
     const payment = await tx.payment.create({ data: input });
-    if (allocations.length > 0) {
+    if (effectiveAllocations.length > 0) {
       await tx.paymentAllocation.createMany({
-        data: allocations.map((allocation) => ({
+        data: effectiveAllocations.map((allocation) => ({
           id: allocation.id,
           paymentId: payment.id,
           sessionId: allocation.sessionId,
@@ -102,7 +181,6 @@ export async function createPaymentWithAllocations(
   });
   return toPayment(record);
 }
-
 
 export async function findPaymentAllocationsBySessionIds(sessionIds: string[]): Promise<PaymentAllocation[]> {
   if (sessionIds.length === 0) return [];

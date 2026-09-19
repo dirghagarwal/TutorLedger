@@ -22,12 +22,20 @@ function failure(error: unknown): ActionResult {
   return { ok: false, error: error instanceof Error ? error.message : "Unable to save student." };
 }
 
+function safeRevalidate(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Server actions can also be invoked from non-request test/CLI contexts.
+  }
+}
+
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
     const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
-    revalidatePath("/students");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -37,10 +45,10 @@ export async function addStudent(input: unknown): Promise<ActionResult> {
 export async function editStudent(id: string, input: unknown): Promise<ActionResult> {
   try {
     const student = await updateStudent(id, parseInput(input));
-    revalidatePath("/students");
-    revalidatePath(`/students/${id}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate(`/students/${id}`);
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);

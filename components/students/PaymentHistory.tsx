@@ -7,6 +7,7 @@ import { BillingPeriod, PaymentMethod, PaymentStatus, type Payment } from "@/typ
 interface PaymentHistoryProps {
   payments: readonly Payment[];
   outstandingBalance: number;
+  creditBalance: number;
   lifetimePayments: number;
 }
 
@@ -37,6 +38,7 @@ const currencyFormatter = new Intl.NumberFormat("en-IN", {
 });
 
 export default function PaymentHistory({
+  creditBalance,
   lifetimePayments,
   outstandingBalance,
   payments,
@@ -52,8 +54,9 @@ export default function PaymentHistory({
         </div>
       </CardHeader>
       <CardContent className="pt-5">
-        <div className="mb-5 grid gap-3 sm:grid-cols-2">
+        <div className="mb-5 grid gap-3 sm:grid-cols-3">
           <Summary label="Outstanding balance" value={currencyFormatter.format(outstandingBalance)} />
+          <Summary label="Advance credit" value={currencyFormatter.format(creditBalance)} />
           <Summary label="Lifetime payments" value={currencyFormatter.format(lifetimePayments)} />
         </div>
         {payments.length === 0 ? (

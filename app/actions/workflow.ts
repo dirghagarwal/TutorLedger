@@ -73,6 +73,9 @@ export async function recordAttendance(input: unknown): Promise<AttendanceResult
     if (!session) {
       return { ok: false, error: "Session record could not be found or created." };
     }
+    if (values.studentId && session.studentId !== values.studentId) {
+      return { ok: false, error: "Session does not belong to this student." };
+    }
 
     const attendance = await upsertAttendance({
       id: `attendance-${session.id}`,
@@ -121,6 +124,10 @@ export async function updateClassStatus(input: unknown): Promise<UpdateStatusRes
         startTime: values.startTime ?? "09:00",
         endTime: values.endTime ?? "10:00",
       });
+    }
+
+    if (session && values.studentId && session.studentId !== values.studentId) {
+      return { ok: false, error: "Session does not belong to this student." };
     }
 
     let startedAt = values.startedAt ?? session?.startedAt ?? null;

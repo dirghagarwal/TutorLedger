@@ -18,6 +18,7 @@ import { findStudentById } from "@/lib/repositories/students";
 import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
 import { getAttendanceForStudent, getAttendanceSummary } from "@/lib/services/attendance";
 import {
+  getCreditBalance,
   getLifetimePayments,
   getOutstandingBalance,
   getPaymentHistory,
@@ -75,13 +76,10 @@ export default async function StudentProfilePage({
   const todaysClasses = getTodaysClasses(studentSchedules);
   const nextClass = getNextUpcomingClass(studentSchedules);
   const studentPayments = await getPaymentHistory(student.id, allPayments);
-  const outstandingBalance = await getOutstandingBalance(
-    student.id,
-    allPayments,
-    [student],
-    allSessions,
-    allAttendance
-  );
+  const [outstandingBalance, creditBalance] = await Promise.all([
+    getOutstandingBalance(student.id, allPayments, [student], allSessions, allAttendance),
+    getCreditBalance(student.id, allPayments, [student], allSessions, allAttendance),
+  ]);
   const lifetimePayments = await getLifetimePayments(student.id, allPayments);
   const recentPayment = await getRecentPayment(student.id, allPayments);
   const studentSessions = allSessions.filter((s) => s.studentId === student.id);
@@ -180,6 +178,9 @@ export default async function StudentProfilePage({
               <Detail icon={<WalletCards />} label="Outstanding balance">
                 {currencyFormatter.format(outstandingBalance)}
               </Detail>
+              <Detail label="Advance credit">
+                {currencyFormatter.format(creditBalance)}
+              </Detail>
               <Detail label="Total classes attended">
                 {attendanceSummary.attendedClasses}
               </Detail>
@@ -228,6 +229,7 @@ export default async function StudentProfilePage({
 
           <div className="mt-6">
             <PaymentHistory
+              creditBalance={creditBalance}
               lifetimePayments={lifetimePayments}
               outstandingBalance={outstandingBalance}
               payments={studentPayments}

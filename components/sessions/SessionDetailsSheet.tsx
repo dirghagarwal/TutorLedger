@@ -17,6 +17,8 @@ import { AttachmentType, type Attachment } from "@/types/attachment";
 import { type Payment } from "@/types/payment";
 import { SessionStatus, type Session } from "@/types/session";
 import type { SessionNote } from "@/types/session-note";
+import { BillingPeriod } from "@/types/payment";
+import { FeeType } from "@/types/students";
 
 export interface SessionDetailsRecord {
   session: Session;
@@ -26,6 +28,7 @@ export interface SessionDetailsRecord {
   payments: Payment[];
   notes: SessionNote[];
   attachments: Attachment[];
+  feeType: FeeType;
 }
 
 interface SessionDetailsSheetProps {
@@ -283,7 +286,17 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
           </div>
         </div>
 
-        {paymentOpen && <PaymentDialog open={paymentOpen} studentName={record.studentName} onOpenChange={(open) => setPaymentOpen(open)} onSubmit={handlePaymentSubmit} />}
+        {paymentOpen && (
+          <PaymentDialog
+            open={paymentOpen}
+            studentName={record.studentName}
+            defaultBillingPeriod={
+              record.feeType === FeeType.CLASSWISE ? BillingPeriod.CLASSWISE : BillingPeriod.MONTHLY
+            }
+            onOpenChange={(open) => setPaymentOpen(open)}
+            onSubmit={handlePaymentSubmit}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );

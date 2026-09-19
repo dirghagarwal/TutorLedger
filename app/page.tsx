@@ -6,6 +6,7 @@ import RightPanel from "@/components/layout/RightPanel";
 import TodayClasses, { type TodayClassItem } from "@/components/workspace/TodayClasses";
 import type { SessionView } from "@/components/layout/RightPanel";
 import { formatTime } from "@/lib/services/schedule";
+import { FeeType } from "@/types/students";
 import {
   getAllSessions,
   getNextSession,
@@ -53,6 +54,7 @@ export default async function Home() {
     studentColor: students.find((student) => student.id === session.studentId)?.color ?? "var(--avatar-fallback)",
     attendance: attendanceBySession.get(session.id) ?? null,
     payments: payments.filter((payment) => payment.sessionId === session.id),
+    feeType: students.find((student) => student.id === session.studentId)?.feeType ?? FeeType.MONTHLY,
   }));
 
   return (

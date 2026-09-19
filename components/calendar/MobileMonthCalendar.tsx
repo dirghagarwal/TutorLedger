@@ -11,6 +11,7 @@ import type { MonthCalendarDay } from "@/lib/services/sessions";
 import type { Session } from "@/types/session";
 import type { CalendarStudent } from "@/components/calendar/CalendarDay";
 import type { SessionDetailsRecord } from "@/components/sessions/SessionDetailsSheet";
+import { FeeType } from "@/types/students";
 
 interface MobileMonthCalendarProps {
   calendarDays: readonly MonthCalendarDay[];
@@ -214,12 +215,13 @@ export default function MobileMonthCalendar({
                 const student = studentsById[session.studentId];
                 const detailRecord = sessionDetailsById[session.id] ?? {
                   session,
-                  studentName: student?.name ?? "Student",
+                  studentName: student?.name ?? "Unknown student",
                   studentColor: student?.color ?? "var(--avatar-fallback)",
                   attendance: null,
                   payments: [],
                   notes: [],
                   attachments: [],
+                  feeType: student?.feeType ?? FeeType.MONTHLY,
                 };
 
                 return (
@@ -233,7 +235,7 @@ export default function MobileMonthCalendar({
                       className="flex size-10 shrink-0 items-center justify-center rounded-full text-xs font-bold text-foreground shadow-xs"
                       style={{ backgroundColor: student?.color ?? "var(--avatar-fallback)" }}
                     >
-                      {getInitials(student?.name ?? "ST")}
+                      {getInitials(student?.name ?? "Unknown student")}
                     </span>
 
                     <div className="min-w-0 flex-1">

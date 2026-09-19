@@ -22,6 +22,7 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npm run lint
+      - run: npm test
       - name: Run npm run build
         env:
           DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?schema=public

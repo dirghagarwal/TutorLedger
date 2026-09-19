@@ -1,10 +1,12 @@
 import { motion } from "framer-motion";
 
 import type { Session } from "@/types/session";
+import { FeeType } from "@/types/students";
 
 export interface CalendarStudent {
   name: string;
   color: string;
+  feeType: FeeType;
 }
 
 interface CalendarDayProps {
@@ -66,10 +68,10 @@ export default function CalendarDay({
                 className="flex size-6 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold text-foreground"
                 style={{ backgroundColor: student?.color ?? "var(--avatar-fallback)" }}
               >
-                {getInitials(student?.name ?? "Student")}
+                {getInitials(student?.name ?? "Unknown student")}
               </span>
               <span className="truncate text-xs text-secondary-foreground flex items-center gap-1">
-                {student?.name ?? "Student"}
+                {student?.name ?? "Unknown student"}
                 {session.status === "COMPLETED" && <span className="size-1.5 rounded-full bg-success shrink-0" title="Completed / Present" />}
                 {session.status === "IN_PROGRESS" && <span className="size-1.5 rounded-full bg-primary animate-pulse shrink-0" title="In Progress" />}
                 {session.status === "CANCELLED" && <span className="size-1.5 rounded-full bg-destructive shrink-0" title="Cancelled" />}
