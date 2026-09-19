@@ -21,6 +21,19 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx tsc --noEmit
+      - name: Diagnose TypeScript on pull requests
+        if: failure() && github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          npx tsc --noEmit --pretty false > /tmp/tsc-output.txt 2>&1 || true
+          {
+            echo "## Temporary TypeScript diagnostics"
+            echo '```text'
+            cat /tmp/tsc-output.txt
+            echo '```'
+          } > /tmp/tsc-comment.md
+          gh pr comment ${{ github.event.pull_request.number }} --body-file /tmp/tsc-comment.md
       - run: npm run lint
       - run: npm test
       - name: Run npm run build
