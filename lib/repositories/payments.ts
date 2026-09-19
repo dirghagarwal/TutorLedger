@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/db/prisma";
 import type { PaymentAllocation } from "@/types/payment-allocation";
 import {
@@ -67,7 +68,7 @@ export async function createPaymentWithAllocations(
   input: Payment,
   allocations: PaymentAllocation[],
 ): Promise<Payment> {
-  const record = await prisma.$transaction(async (tx) => {
+  const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
     if (allocations.length > 0) {
       const sessions = await tx.session.findMany({
         where: {
