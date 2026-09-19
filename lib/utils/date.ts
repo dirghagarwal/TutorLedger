@@ -176,7 +176,8 @@ export function parseRelativeDate(
         }
 
         const targetDate = new Date(currentWeekStart);
-        targetDate.setUTCDate(currentWeekStart.getUTCDate() + targetDay);
+        const mondayBasedOffset = (targetDay + 6) % 7;
+        targetDate.setUTCDate(currentWeekStart.getUTCDate() + mondayBasedOffset);
         return getDateKey(targetDate);
       }
 
