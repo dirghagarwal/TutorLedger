@@ -18,6 +18,7 @@ import { findStudentById } from "@/lib/repositories/students";
 import { findAttachmentsBySessionIds } from "@/lib/repositories/attachments";
 import { getAttendanceForStudent, getAttendanceSummary } from "@/lib/services/attendance";
 import {
+  getAdvanceCreditBalance,
   getLifetimePayments,
   getOutstandingBalance,
   getPaymentHistory,
@@ -75,14 +76,11 @@ export default async function StudentProfilePage({
   const todaysClasses = getTodaysClasses(studentSchedules);
   const nextClass = getNextUpcomingClass(studentSchedules);
   const studentPayments = await getPaymentHistory(student.id, allPayments);
-  const outstandingBalance = await getOutstandingBalance(
-    student.id,
-    allPayments,
-    [student],
-    allSessions,
-    allAttendance
-  );
-  const lifetimePayments = await getLifetimePayments(student.id, allPayments);
+  const [outstandingBalance, advanceCredit, lifetimePayments] = await Promise.all([
+    getOutstandingBalance(student.id, allPayments, [student], allSessions, allAttendance),
+    getAdvanceCreditBalance(student.id, allPayments, [student], allSessions, allAttendance),
+    getLifetimePayments(student.id, allPayments),
+  ]);
   const recentPayment = await getRecentPayment(student.id, allPayments);
   const studentSessions = allSessions.filter((s) => s.studentId === student.id);
 
@@ -179,6 +177,9 @@ export default async function StudentProfilePage({
               </Detail>
               <Detail icon={<WalletCards />} label="Outstanding balance">
                 {currencyFormatter.format(outstandingBalance)}
+              </Detail>
+              <Detail label="Advance credit">
+                {advanceCredit > 0 ? currencyFormatter.format(advanceCredit) : "No credit"}
               </Detail>
               <Detail label="Total classes attended">
                 {attendanceSummary.attendedClasses}

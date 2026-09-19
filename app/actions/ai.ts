@@ -21,9 +21,9 @@ import { formatDisplayDate, getTodayDateKey, parseRelativeDate, parseMultipleRel
 import { normalizeName, stringSimilarity } from "@/lib/utils/string";
 import { aiSemanticOutputSchema, type AiSemanticOutput } from "@/lib/validations/ai";
 import { AttendanceStatus } from "@/types/attendance";
-import { PaymentMethod } from "@/types/payment";
+import { BillingPeriod, PaymentMethod } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
-import type { Student } from "@/types/students";
+import { FeeType, type Student } from "@/types/students";
 
 function safeRevalidate(path: string) {
   try {
@@ -407,7 +407,22 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const amount = semanticOutput.amount || 1000;
+      if (
+        semanticOutput.amount == null ||
+        !Number.isInteger(semanticOutput.amount) ||
+        semanticOutput.amount <= 0
+      ) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: "How much did " + student.name + " pay?",
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
+
+      const amount = semanticOutput.amount;
       const method = semanticOutput.method || PaymentMethod.UPI;
       const paymentDate =
         resolveDatesWithContextPriority(
@@ -437,6 +452,10 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           studentId: student.id,
           amount,
           method,
+          billingPeriod:
+            student.feeType === FeeType.CLASSWISE
+              ? BillingPeriod.CLASSWISE
+              : BillingPeriod.MONTHLY,
           notes: "Recorded via TutorLedger AI",
           date: paymentDate,
           token,

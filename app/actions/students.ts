@@ -18,6 +18,14 @@ function parseInput(input: unknown): StudentInput {
   return studentSchema.parse(input);
 }
 
+function safeRevalidate(path: string): void {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Revalidation can run outside an active request context in standalone scripts.
+  }
+}
+
 function failure(error: unknown): ActionResult {
   return { ok: false, error: error instanceof Error ? error.message : "Unable to save student." };
 }
@@ -25,9 +33,9 @@ function failure(error: unknown): ActionResult {
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
     const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
-    revalidatePath("/students");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -37,10 +45,10 @@ export async function addStudent(input: unknown): Promise<ActionResult> {
 export async function editStudent(id: string, input: unknown): Promise<ActionResult> {
   try {
     const student = await updateStudent(id, parseInput(input));
-    revalidatePath("/students");
-    revalidatePath(`/students/${id}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate(`/students/${id}`);
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -50,10 +58,10 @@ export async function editStudent(id: string, input: unknown): Promise<ActionRes
 export async function archiveStudent(id: string): Promise<ActionResult> {
   try {
     const student = await archiveStudentRecord(id);
-    revalidatePath("/students");
-    revalidatePath(`/students/${id}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate(`/students/${id}`);
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -63,9 +71,9 @@ export async function archiveStudent(id: string): Promise<ActionResult> {
 export async function deleteStudent(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await deleteStudentRecord(id);
-    revalidatePath("/students");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Unable to delete student." };

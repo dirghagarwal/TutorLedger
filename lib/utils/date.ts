@@ -153,11 +153,34 @@ export function parseRelativeDate(
     }
   }
 
-  // 4. Weekday with Past/Recent Modifier ("Wednesday", "on Wednesday", "last Wednesday", "this Wednesday")
-  const weekdayMatch = cleaned.match(/\b(?:last\s+|this\s+|on\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i);
-  if (weekdayMatch?.[1]) {
-    const targetDay = WEEKDAYS[weekdayMatch[1].toLowerCase()];
+  // 4. Weekday resolution.
+  // Bare weekdays mean the most recent occurrence (today or earlier).
+  // "this <weekday>" means the occurrence inside the current Monday-Sunday week.
+  // "last <weekday>" means the occurrence inside the previous Monday-Sunday week.
+  const weekdayMatch = cleaned.match(
+    /\b(?:(last|this)\s+)?(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tue|wed|thu|fri|sat)\b/i
+  );
+  if (weekdayMatch?.[2]) {
+    const modifier = weekdayMatch[1]?.toLowerCase();
+    const targetDay = WEEKDAYS[weekdayMatch[2].toLowerCase()];
+
     if (targetDay !== undefined) {
+      if (modifier === "this" || modifier === "last") {
+        // Treat Monday as the start of the week for deterministic natural-language semantics.
+        const daysSinceMonday = (currentDayOfWeek + 6) % 7;
+        const currentWeekStart = new Date(todayDateObj);
+        currentWeekStart.setUTCDate(todayDateObj.getUTCDate() - daysSinceMonday);
+
+        if (modifier === "last") {
+          currentWeekStart.setUTCDate(currentWeekStart.getUTCDate() - 7);
+        }
+
+        const targetDate = new Date(currentWeekStart);
+        const mondayBasedOffset = (targetDay + 6) % 7;
+        targetDate.setUTCDate(currentWeekStart.getUTCDate() + mondayBasedOffset);
+        return getDateKey(targetDate);
+      }
+
       const diff = (currentDayOfWeek - targetDay + 7) % 7;
       const targetDate = new Date(todayDateObj);
       targetDate.setUTCDate(todayDateObj.getUTCDate() - diff);

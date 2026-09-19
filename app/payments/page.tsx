@@ -6,6 +6,7 @@ import { findStudents } from "@/lib/repositories/students";
 import { findSessions } from "@/lib/repositories/sessions";
 import { findAttendance } from "@/lib/repositories/attendance";
 import {
+  getAdvanceCreditBalance,
   getLifetimePayments,
   getOutstandingBalance,
   getRevenueThisMonth,
@@ -31,14 +32,16 @@ export default async function PaymentsPage() {
 
   const studentBalances = await Promise.all(
     students.map(async (student) => {
-      const [outstanding, paid] = await Promise.all([
+      const [outstanding, paid, credit] = await Promise.all([
         getOutstandingBalance(student.id, payments, students, sessions, attendance),
         getLifetimePayments(student.id, payments),
+        getAdvanceCreditBalance(student.id, payments, students, sessions, attendance),
       ]);
       return {
         student,
         outstandingBalance: outstanding,
         lifetimePaid: paid,
+        creditBalance: credit,
       };
     })
   );

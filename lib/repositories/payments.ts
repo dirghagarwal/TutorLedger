@@ -69,7 +69,25 @@ export async function createPaymentWithAllocations(
   allocations: PaymentAllocation[],
 ): Promise<Payment> {
   const record = await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+    if (input.sessionId) {
+      const directSession = await tx.session.findUnique({
+        where: { id: input.sessionId },
+        select: { studentId: true },
+      });
+      if (!directSession) {
+        throw new Error("The payment session could not be found.");
+      }
+      if (directSession.studentId !== input.studentId) {
+        throw new Error("The payment session does not belong to this student.");
+      }
+    }
+
     if (allocations.length > 0) {
+      const uniqueSessionIds = new Set(allocations.map((allocation) => allocation.sessionId));
+      if (uniqueSessionIds.size !== allocations.length) {
+        throw new Error("A payment cannot allocate the same session more than once.");
+      }
+
       const sessions = await tx.session.findMany({
         where: {
           id: { in: allocations.map((allocation) => allocation.sessionId) },
@@ -77,7 +95,7 @@ export async function createPaymentWithAllocations(
         },
         select: { id: true },
       });
-      if (sessions.length !== allocations.length) {
+      if (sessions.length !== uniqueSessionIds.size) {
         throw new Error("One or more payment allocations do not belong to this student.");
       }
 
