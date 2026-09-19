@@ -53,6 +53,7 @@ model Session {
   notes      SessionNote[]
   attachments Attachment[]
 
+  @@unique([studentId, date])
   @@index([studentId, date])
   @@index([scheduleId, date])
 }
