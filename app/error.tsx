@@ -13,8 +13,8 @@ export default function Error({
   useEffect(() => {
     // Keep production error details out of the UI while retaining a client-side
     // recovery path for transient database/network failures.
-    console.error("TutorLedger route error", arguments);
-  }, []);
+    console.error("TutorLedger route error", error);
+  }, [error]);
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-5 py-12">
