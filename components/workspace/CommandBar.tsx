@@ -14,7 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { formatDisplayDate } from "@/lib/utils/date";
-import { PaymentMethod, PaymentStatus } from "@/types/payment";
+import { BillingPeriod, PaymentMethod, PaymentStatus } from "@/types/payment";
 import { getTodayDateKey } from "@/lib/utils/date";
 
 const samplePrompts = [
@@ -154,7 +154,7 @@ export default function CommandBar() {
         date: paymentDate,
         method: (data.method as PaymentMethod) || PaymentMethod.UPI,
         status: PaymentStatus.PAID,
-        billingPeriod: (data.billingPeriod as import("@/types/payment").BillingPeriod) || import("@/types/payment").BillingPeriod.MONTHLY,
+        billingPeriod: (data.billingPeriod as BillingPeriod) || BillingPeriod.MONTHLY,
         notes: String(data.notes || "Recorded via TutorLedger AI"),
       });
 
