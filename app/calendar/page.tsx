@@ -48,7 +48,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const studentsById: Record<string, CalendarStudent> = Object.fromEntries(
     students.map((student: Student) => [
       student.id,
-      { name: student.name, color: student.color },
+      { name: student.name, color: student.color, feeType: student.feeType },
     ])
   );
 
@@ -74,7 +74,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           payments: matchedPayments,
           notes: matchedNotes,
           attachments: matchedAttachments,
-          feeType: students.find((student) => student.id === session.studentId)?.feeType ?? FeeType.MONTHLY,
+          feeType: studentsById[session.studentId]?.feeType ?? FeeType.MONTHLY,
         },
       ];
     })
