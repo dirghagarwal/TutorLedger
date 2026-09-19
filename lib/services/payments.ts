@@ -5,7 +5,7 @@ import { findStudentById, findStudents } from "@/lib/repositories/students";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
-import { getTodayDateKey } from "@/lib/utils/date";
+import { getDateKey, getTodayDateKey } from "@/lib/utils/date";
 import { calculateLedgerBalance, calculateMonthlyAccruedFee } from "@/lib/services/billing";
 import type { Session } from "@/types/session";
 
@@ -17,15 +17,11 @@ function isCollected(payment: Payment): boolean {
 }
 
 function isSameMonth(date: string, reference: Date): boolean {
-  const paymentDate = new Date(`${date}T00:00:00`);
-  return (
-    paymentDate.getFullYear() === reference.getFullYear() &&
-    paymentDate.getMonth() === reference.getMonth()
-  );
+  return date.slice(0, 7) === getDateKey(reference).slice(0, 7);
 }
 
 function isSameYear(date: string, reference: Date): boolean {
-  return new Date(`${date}T00:00:00`).getFullYear() === reference.getFullYear();
+  return date.slice(0, 4) === getDateKey(reference).slice(0, 4);
 }
 
 function sumPayments(records: readonly Payment[]): number {
