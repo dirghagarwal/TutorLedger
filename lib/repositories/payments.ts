@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import type { PaymentAllocation } from "@/types/payment-allocation";
 import {
   BillingPeriod,
   PaymentMethod,
@@ -33,4 +34,30 @@ export async function findPaymentById(id: string): Promise<Payment | null> {
 export async function createPayment(input: Payment): Promise<Payment> {
   const record = await prisma.payment.create({ data: input });
   return toPayment(record);
+}
+
+
+function toPaymentAllocation(record: Awaited<ReturnType<typeof prisma.paymentAllocation.findMany>>[number]): PaymentAllocation {
+  return record;
+}
+
+export async function findPaymentAllocationsByPayment(paymentId: string): Promise<PaymentAllocation[]> {
+  const records = await prisma.paymentAllocation.findMany({
+    where: { paymentId },
+    orderBy: { sessionId: "asc" },
+  });
+  return records.map(toPaymentAllocation);
+}
+
+export async function findPaymentAllocationsBySession(sessionId: string): Promise<PaymentAllocation[]> {
+  const records = await prisma.paymentAllocation.findMany({
+    where: { sessionId },
+    orderBy: { paymentId: "asc" },
+  });
+  return records.map(toPaymentAllocation);
+}
+
+export async function createPaymentAllocation(input: PaymentAllocation): Promise<PaymentAllocation> {
+  const record = await prisma.paymentAllocation.create({ data: input });
+  return toPaymentAllocation(record);
 }
