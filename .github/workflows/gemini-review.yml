@@ -65,7 +65,11 @@ jobs:
             throw "Antigravity CLI not found at $agy"
           }
           & $agy --version
-          & $agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m | Out-File -Encoding utf8 gemini-review.md
+          & $agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m 2>&1 | Out-File -Encoding utf8 gemini-review.md
+          if (-not (Test-Path -LiteralPath gemini-review.md)) { throw "Gemini review output file was not created" }
+          $size = (Get-Item gemini-review.md).Length
+          if ($size -eq 0) { throw "Gemini returned no review output" }
+          "Gemini review size: $size bytes"
 
       - name: Upload review artifact
         uses: actions/upload-artifact@v4
