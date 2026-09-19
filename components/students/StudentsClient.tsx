@@ -7,6 +7,7 @@ import { archiveStudent, deleteStudent } from "@/app/actions/students";
 import StudentCard from "@/components/students/StudentCard";
 import StudentFormDialog from "@/components/students/StudentFormDialog";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import type { Student } from "@/types/students";
 
 export interface StudentListItem {
@@ -27,6 +28,8 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
+  const [typedDelete, setTypedDelete] = useState("");
   const [isPending, startTransition] = useTransition();
   const activeStudents = items.filter(({ student }) => student.active).length;
 
@@ -67,8 +70,14 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
   };
 
   const handleDelete = (student: Student) => {
-    if (!window.confirm(`Delete ${student.name}? This cannot be undone.`)) return;
     setError(null);
+    setTypedDelete("");
+    setDeleteTarget(student);
+  };
+
+  const confirmDelete = () => {
+    if (!deleteTarget) return;
+    const student = deleteTarget;
     const removed = items.find((item) => item.student.id === student.id);
     setItems((current) => current.filter((item) => item.student.id !== student.id));
     setPendingFees((current) => current - (removed?.outstandingBalance ?? 0));
@@ -78,9 +87,16 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
         setItems((current) => [...current, removed]);
         setPendingFees((current) => current + removed.outstandingBalance);
         setError(result.error);
+      } else if (result.ok) {
+        setDeleteTarget(null);
+        setTypedDelete("");
       }
     });
   };
+
+  const deleteConfirmation = deleteTarget
+    ? `DELETE ${deleteTarget.name.toUpperCase()}`
+    : "";
 
   const currencyFormatter = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 });
 
@@ -104,6 +120,53 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
       {items.length > 0 ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => <StudentCard {...item} key={item.student.id} onArchive={handleArchive} onDelete={handleDelete} onEdit={openEdit} />)}</div> : <div className="rounded-3xl border border-dashed border-border-strong bg-surface p-10 text-center text-muted-foreground">No students have been added yet.</div>}
       {isPending && <p className="mt-4 text-xs text-muted-foreground">Saving changes…</p>}
       <StudentFormDialog onOpenChange={setDialogOpen} onSaved={saveStudent} open={dialogOpen} student={editingStudent} />
+
+      <Dialog
+        open={Boolean(deleteTarget)}
+        onOpenChange={(open) => {
+          if (!open && !isPending) {
+            setDeleteTarget(null);
+            setTypedDelete("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md rounded-2xl border-destructive/40 bg-surface">
+          <DialogHeader>
+            <DialogTitle className="text-destructive">Permanently delete student?</DialogTitle>
+            <DialogDescription>
+              This removes the student and associated schedules, sessions, notes, attachments, and payment records.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteTarget && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm">
+                Type <span className="font-mono font-semibold">{deleteConfirmation}</span> to continue.
+              </div>
+              <input
+                autoFocus
+                aria-label={`Type ${deleteConfirmation} to confirm deletion`}
+                className="w-full min-h-11 rounded-xl border border-input bg-card px-3 text-sm text-foreground outline-none focus:border-destructive focus:ring-3 focus:ring-destructive/20"
+                value={typedDelete}
+                onChange={(event) => setTypedDelete(event.target.value)}
+                placeholder={deleteConfirmation}
+              />
+              <div className="flex justify-end gap-2">
+                <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)} disabled={isPending}>
+                  Cancel
+                </Button>
+                <Button
+                  type="button"
+                  variant="destructive"
+                  disabled={isPending || typedDelete.trim().toUpperCase() !== deleteConfirmation}
+                  onClick={confirmDelete}
+                >
+                  {isPending ? "Deleting…" : "Permanently delete"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
