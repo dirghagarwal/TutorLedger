@@ -21,7 +21,7 @@ import { formatDisplayDate, getTodayDateKey, parseRelativeDate, parseMultipleRel
 import { normalizeName, stringSimilarity } from "@/lib/utils/string";
 import { aiSemanticOutputSchema, type AiSemanticOutput } from "@/lib/validations/ai";
 import { AttendanceStatus } from "@/types/attendance";
-import { PaymentMethod } from "@/types/payment";
+import { BillingPeriod, PaymentMethod } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
 import type { Student } from "@/types/students";
 
@@ -407,8 +407,21 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const amount = semanticOutput.amount || 1000;
+      const amount = semanticOutput.amount;
+      if (amount == null || amount <= 0) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: "What amount was received from " + student.name + "?",
+          clarificationOptions: ["₹1,000", "₹2,000", "₹2,500"],
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
       const method = semanticOutput.method || PaymentMethod.UPI;
+      const billingPeriod =
+        student.feeType === FeeType.CLASSWISE ? BillingPeriod.CLASSWISE : BillingPeriod.MONTHLY;
       const paymentDate =
         resolveDatesWithContextPriority(
           semanticOutput.dates,
@@ -431,14 +444,16 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           studentId: student.id,
           studentName: student.name,
           token,
-          details: `Amount: ₹${amount} · Date: ${paymentDate} · Method: ${method} · Notes: Recorded via TutorLedger AI`,
+          details: `Amount: ₹${amount} · Date: ${paymentDate} · Method: ${method} · Billing: ${billingPeriod} · Notes: Recorded via TutorLedger AI`,
         },
         data: {
           studentId: student.id,
           amount,
           method,
+          billingPeriod,
           notes: "Recorded via TutorLedger AI",
           date: paymentDate,
+          billingPeriod,
           token,
         },
         activeContext,
