@@ -20,7 +20,7 @@ test("distinguishes this week and last week weekdays", () => {
 
 test("keeps multi-date weekday parsing distinct", () => {
   assert.deepEqual(
-    parseMultipleRelativeDates("Wednesday and Friday", null),
-    [parseRelativeDate("Wednesday"), parseRelativeDate("Friday")],
+    parseMultipleRelativeDates("Wednesday and Friday", null, saturday),
+    [parseRelativeDate("Wednesday", null, saturday), parseRelativeDate("Friday", null, saturday)],
   );
 });
