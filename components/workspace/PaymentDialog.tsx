@@ -22,14 +22,15 @@ interface PaymentDialogProps {
   studentName: string;
   onOpenChange: (open: boolean) => void;
   onSubmit: (draft: PaymentDraft) => Promise<boolean>;
+  defaultBillingPeriod?: BillingPeriod;
 }
 
-export default function PaymentDialog({ open, studentName, onOpenChange, onSubmit }: Readonly<PaymentDialogProps>) {
+export default function PaymentDialog({ open, studentName, onOpenChange, onSubmit, defaultBillingPeriod = BillingPeriod.MONTHLY }: Readonly<PaymentDialogProps>) {
   const [amount, setAmount] = useState("");
   const [date, setDate] = useState(() => getTodayDateKey());
   const [method, setMethod] = useState<PaymentMethod>(PaymentMethod.UPI);
   const [status, setStatus] = useState<PaymentStatus>(PaymentStatus.PAID);
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(defaultBillingPeriod);
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
 
