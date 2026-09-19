@@ -180,13 +180,16 @@ export function parseRelativeDate(
         return getDateKey(targetDate);
       }
 
-      const daysSinceTarget = (currentDayOfWeek - targetDay + 7) % 7;
       if (modifier === "last" || modifier === "last week's") {
-        const daysBack = daysSinceTarget === 0 ? 7 : daysSinceTarget;
-        targetDate.setUTCDate(targetDate.getUTCDate() - daysBack - 7);
+        const daysSinceMonday = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1;
+        const monday = new Date(todayDateObj);
+        monday.setUTCDate(monday.getUTCDate() - daysSinceMonday - 7);
+        const offsetFromMonday = targetDay === 0 ? 6 : targetDay - 1;
+        targetDate.setUTCDate(monday.getUTCDate() + offsetFromMonday);
         return getDateKey(targetDate);
       }
 
+      const daysSinceTarget = (currentDayOfWeek - targetDay + 7) % 7;
       targetDate.setUTCDate(targetDate.getUTCDate() - daysSinceTarget);
       return getDateKey(targetDate);
     }
