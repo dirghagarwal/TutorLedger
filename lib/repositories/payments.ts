@@ -33,8 +33,7 @@ export async function findPaymentById(id: string): Promise<Payment | null> {
 }
 
 export async function createPayment(input: Payment): Promise<Payment> {
-  const record = await prisma.payment.create({ data: input });
-  return toPayment(record);
+  return createPaymentWithAllocations(input, []);
 }
 
 
