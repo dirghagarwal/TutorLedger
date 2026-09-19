@@ -22,18 +22,18 @@ jobs:
           fetch-depth: 0
 
       - name: Fetch base
-        shell: pwsh
+        shell: powershell
         run: git fetch origin main --no-tags
 
       - name: Build review diff
-        shell: pwsh
+        shell: powershell
         run: |
           git diff --no-ext-diff --unified=80 origin/main...HEAD | Out-File -Encoding utf8 .gemini-review-diff.txt
           $lines = (Get-Content .gemini-review-diff.txt | Measure-Object -Line).Lines
           "Review diff lines: $lines"
 
       - name: Run Gemini Pro review
-        shell: pwsh
+        shell: powershell
         run: |
           $prompt = @"
           You are the independent senior reviewer for TutorLedger.
@@ -63,7 +63,7 @@ jobs:
           agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m | Out-File -Encoding utf8 gemini-review.md
 
       - name: Comment review on PR
-        shell: pwsh
+        shell: powershell
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
