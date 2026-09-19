@@ -453,7 +453,6 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
           billingPeriod,
           notes: "Recorded via TutorLedger AI",
           date: paymentDate,
-          billingPeriod,
           token,
         },
         activeContext,
