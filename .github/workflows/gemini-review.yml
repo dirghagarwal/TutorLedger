@@ -1,0 +1,79 @@
+name: Gemini Pro Review
+
+on:
+  push:
+    branches: ["chatgpt/**"]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  gemini-review:
+    # One-time setup: register your Windows PC as a self-hosted runner
+    # with labels: self-hosted, windows, tutorledger, and install/login to Antigravity CLI.
+    runs-on: [self-hosted, windows, tutorledger]
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch base
+        shell: pwsh
+        run: git fetch origin main --no-tags
+
+      - name: Build review diff
+        shell: pwsh
+        run: |
+          git diff --no-ext-diff --unified=80 origin/main...HEAD | Out-File -Encoding utf8 .gemini-review-diff.txt
+          $lines = (Get-Content .gemini-review-diff.txt | Measure-Object -Line).Lines
+          "Review diff lines: $lines"
+
+      - name: Run Gemini Pro review
+        shell: pwsh
+        run: |
+          $prompt = @"
+          You are the independent senior reviewer for TutorLedger.
+          REVIEW ONLY. Do not modify source files, do not commit, and do not deploy.
+
+          Read:
+          1. AGENTS.md
+          2. GEMINI_REVIEW_PROTOCOL.md
+          3. .gemini-review-diff.txt
+          4. Surrounding repository files needed to validate findings.
+
+          Review the current branch against origin/main.
+          Focus on real bugs and production risks, especially data integrity, payments,
+          payment allocations, session identity, dates/timezones, AI safety/context,
+          performance/N+1, React/Next.js correctness, and UX race conditions.
+
+          Return ONLY:
+          BLOCKERS:
+          HIGH:
+          MEDIUM:
+          LOW:
+          COVERAGE:
+
+          Each finding must include file/path, concrete issue, impact, and fix direction.
+          Do not score or praise the code. Do not invent findings.
+          "@
+          agy -p $prompt --model gemini-3.1-pro-high --effort high --output-format text --print-timeout 25m | Out-File -Encoding utf8 gemini-review.md
+
+      - name: Comment review on PR
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pr = gh pr list --head "${{ github.ref_name }}" --state open --json number --jq ".[0].number"
+          if (-not $pr) { throw "No open PR found for branch ${{ github.ref_name }}" }
+          gh pr comment $pr --body-file gemini-review.md
+
+      - name: Upload review artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-review-${{ github.run_id }}
+          path: gemini-review.md
+          retention-days: 7
