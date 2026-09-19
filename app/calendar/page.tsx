@@ -74,6 +74,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
           payments: matchedPayments,
           notes: matchedNotes,
           attachments: matchedAttachments,
+          feeType: students.find((student) => student.id === session.studentId)?.feeType ?? "MONTHLY",
         },
       ];
     })
