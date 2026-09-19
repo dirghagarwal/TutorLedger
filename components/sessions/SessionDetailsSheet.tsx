@@ -286,7 +286,17 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
           </div>
         </div>
 
-        {paymentOpen && <PaymentDialog open={paymentOpen} studentName={record.studentName} onOpenChange={(open) => setPaymentOpen(open)} onSubmit={handlePaymentSubmit} />}
+        {paymentOpen && (
+          <PaymentDialog
+            open={paymentOpen}
+            studentName={record.studentName}
+            defaultBillingPeriod={
+              record.feeType === FeeType.CLASSWISE ? BillingPeriod.CLASSWISE : BillingPeriod.MONTHLY
+            }
+            onOpenChange={(open) => setPaymentOpen(open)}
+            onSubmit={handlePaymentSubmit}
+          />
+        )}
       </SheetContent>
     </Sheet>
   );
