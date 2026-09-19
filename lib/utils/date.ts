@@ -83,10 +83,11 @@ function sanitizePromptForDates(text: string): string {
 
 export function parseRelativeDate(
   reference?: string | null,
-  fullPrompt?: string | null
+  fullPrompt?: string | null,
+  now: Date = new Date(),
 ): string {
   const rawInput = `${reference ?? ""} ${fullPrompt ?? ""}`.trim();
-  if (!rawInput) return getTodayDateKey();
+  if (!rawInput) return getDateKey(now);
 
   const cleaned = sanitizePromptForDates(rawInput);
 
@@ -116,7 +117,7 @@ export function parseRelativeDate(
     const day = Number(naturalMatch1[1]);
     const monthStr = naturalMatch1[2]?.toLowerCase() ?? "";
     const month = MONTHS[monthStr];
-    const year = naturalMatch1[3] ? Number(naturalMatch1[3]) : Number(getTodayDateKey().slice(0, 4));
+    const year = naturalMatch1[3] ? Number(naturalMatch1[3]) : Number(getDateKey(now).slice(0, 4));
     if (month !== undefined && !Number.isNaN(day)) {
       const d = new Date(Date.UTC(year, month, day));
       if (d.getUTCFullYear() === year && d.getUTCMonth() === month && d.getUTCDate() === day) {
@@ -140,7 +141,7 @@ export function parseRelativeDate(
   }
 
   // Get current Kolkata date context
-  const todayKey = getTodayDateKey();
+  const todayKey = getDateKey(now);
   const todayDateObj = new Date(`${todayKey}T12:00:00.000Z`);
   const currentDayOfWeek = todayDateObj.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
 
@@ -301,7 +302,7 @@ export function parseMultipleRelativeDates(
     const parsedDates: string[] = [];
     for (const chunk of chunks) {
       if (chunk.trim()) {
-        const d = parseRelativeDate(chunk, fullPrompt);
+        const d = parseRelativeDate(chunk, null, now);
         if (d) parsedDates.push(d);
       }
     }
