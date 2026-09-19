@@ -33,9 +33,9 @@ function safeRevalidate(path: string) {
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
     const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
-    revalidatePath("/students");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -45,10 +45,10 @@ export async function addStudent(input: unknown): Promise<ActionResult> {
 export async function editStudent(id: string, input: unknown): Promise<ActionResult> {
   try {
     const student = await updateStudent(id, parseInput(input));
-    revalidatePath("/students");
-    revalidatePath(`/students/${id}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate(`/students/${id}`);
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
