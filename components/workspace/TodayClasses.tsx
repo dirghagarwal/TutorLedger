@@ -17,7 +17,6 @@ import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { type Payment } from "@/types/payment";
 import { SessionStatus, type Session } from "@/types/session";
 
-import { getTodayDateKey } from "@/lib/utils/date";
 
 export interface TodayClassItem {
   session: Session;
@@ -28,7 +27,6 @@ export interface TodayClassItem {
 }
 
 function getInitials(name: string) { return name.split(/\s+/).filter((part) => part !== "&").slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase(); }
-function today() { return getTodayDateKey(); }
 
 export default function TodayClasses({ initialItems }: Readonly<{ initialItems: TodayClassItem[] }>) {
   const [items, setItems] = useState(initialItems);
