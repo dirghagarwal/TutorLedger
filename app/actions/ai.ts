@@ -407,7 +407,18 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       }
 
       const student = studentRes.student;
-      const amount = semanticOutput.amount || 1000;
+      if (semanticOutput.amount == null) {
+        return {
+          ok: false,
+          state: "NEEDS_CLARIFICATION",
+          requiresClarification: true,
+          message: "How much did " + student.name + " pay?",
+          activeContext,
+          llmUsed: modelName,
+        };
+      }
+
+      const amount = semanticOutput.amount;
       const method = semanticOutput.method || PaymentMethod.UPI;
       const paymentDate =
         resolveDatesWithContextPriority(
