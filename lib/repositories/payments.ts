@@ -123,6 +123,7 @@ export async function createPaymentWithAllocations(
         const candidateSessions = await tx.session.findMany({
           where: {
             studentId: input.studentId,
+            attendance: { is: { status: "PRESENT" } },
             ...(input.sessionId ? { id: input.sessionId } : {}),
           },
           orderBy: [{ date: "asc" }, { startTime: "asc" }],
