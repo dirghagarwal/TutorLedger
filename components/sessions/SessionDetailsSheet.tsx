@@ -17,6 +17,8 @@ import { AttachmentType, type Attachment } from "@/types/attachment";
 import { type Payment } from "@/types/payment";
 import { SessionStatus, type Session } from "@/types/session";
 import type { SessionNote } from "@/types/session-note";
+import { BillingPeriod } from "@/types/payment";
+import { FeeType } from "@/types/students";
 
 export interface SessionDetailsRecord {
   session: Session;
@@ -26,6 +28,7 @@ export interface SessionDetailsRecord {
   payments: Payment[];
   notes: SessionNote[];
   attachments: Attachment[];
+  feeType: FeeType;
 }
 
 interface SessionDetailsSheetProps {
