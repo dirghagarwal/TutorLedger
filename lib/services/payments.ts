@@ -5,6 +5,7 @@ import { findStudentById, findStudents } from "@/lib/repositories/students";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
+import { getTodayDateKey } from "@/lib/utils/date";
 import type { Session } from "@/types/session";
 
 function isCollected(payment: Payment): boolean {
@@ -86,13 +87,13 @@ export async function getOutstandingBalance(
     return Math.max(balanceFromAccrual, pendingPaymentsAmount);
   }
 
-  const reference = new Date();
+  const currentMonthKey = getTodayDateKey().slice(0, 7);
   const monthlyCollected = sumPayments(
     records.filter(
       (payment) =>
         payment.studentId === studentId &&
         isCollected(payment) &&
-        isSameMonth(payment.date, reference)
+        payment.date.slice(0, 7) === currentMonthKey
     )
   );
   const currentMonthBalance = Math.max(0, student.fee - monthlyCollected);
