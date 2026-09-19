@@ -95,11 +95,12 @@ interface BalanceSummary {
   credit: number;
 }
 
-function calculateBalance(
+export function calculateBalance(
   student: Student,
   records: readonly Payment[],
   sessions: readonly Session[],
   attendanceRecords: readonly Attendance[],
+  currentMonthKey = getTodayDateKey().slice(0, 7),
 ): BalanceSummary {
   if (student.feeType === FeeType.CLASSWISE) {
     const studentSessionIds = new Set(
@@ -128,7 +129,6 @@ function calculateBalance(
     };
   }
 
-  const currentMonthKey = getTodayDateKey().slice(0, 7);
   const accruedFees = getMonthlyAccrual(
     student.id,
     student.fee,
