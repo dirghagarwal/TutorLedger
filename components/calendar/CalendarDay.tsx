@@ -1,11 +1,12 @@
 import { motion } from "framer-motion";
 
 import type { Session } from "@/types/session";
+import { FeeType } from "@/types/students";
 
 export interface CalendarStudent {
   name: string;
   color: string;
-  feeType: "MONTHLY" | "CLASSWISE";
+  feeType: FeeType;
 }
 
 interface CalendarDayProps {
