@@ -107,3 +107,16 @@ jobs:
           name: gemini-review-${{ github.run_id }}
           path: gemini-review.md
           retention-days: 7
+
+      - name: Restore Antigravity settings
+        if: ${{ always() }}
+        shell: powershell -NoProfile -ExecutionPolicy Bypass -File {0}
+        run: |
+          $settingsDir = Join-Path $env:USERPROFILE ".gemini\antigravity-cli"
+          $settingsPath = Join-Path $settingsDir "settings.json"
+          $backupPath = "$settingsPath.ci-backup"
+          if (Test-Path -LiteralPath $backupPath) {
+            Move-Item -Force -LiteralPath $backupPath -Destination $settingsPath
+          } elseif (Test-Path -LiteralPath $settingsPath) {
+            Remove-Item -Force -LiteralPath $settingsPath
+          }
