@@ -94,7 +94,23 @@ export function parseRelativeDate(
   const isoMatch = cleaned.match(/\b(\d{4}-\d{2}-\d{2})\b/);
   if (isoMatch?.[1]) return isoMatch[1];
 
-  // 2. Explicit Natural Date ("5 August", "5th Aug", "August 5", "Aug 5th", "2nd August", "9th August")
+  // 2. Explicit numeric date (DD/MM/YYYY, DD-MM-YYYY)
+  const numericMatch = cleaned.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\b/);
+  if (numericMatch?.[1] && numericMatch[2] && numericMatch[3]) {
+    const day = Number(numericMatch[1]);
+    const month = Number(numericMatch[2]) - 1;
+    const year = Number(numericMatch[3]);
+    const d = new Date(Date.UTC(year, month, day));
+    if (
+      d.getUTCFullYear() === year &&
+      d.getUTCMonth() === month &&
+      d.getUTCDate() === day
+    ) {
+      return getDateKey(d);
+    }
+  }
+
+  // 3. Explicit Natural Date ("5 August", "5th Aug", "August 5", "Aug 5th", "2nd August", "9th August")
   const naturalMatch1 = cleaned.match(/\b(\d{1,2})(?:st|nd|rd|th)?\s+(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|sept?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)(?:\s*,?\s*(\d{4}))?\b/i);
   if (naturalMatch1) {
     const day = Number(naturalMatch1[1]);
