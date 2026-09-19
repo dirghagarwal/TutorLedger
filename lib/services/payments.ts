@@ -86,7 +86,17 @@ export async function getOutstandingBalance(
     return Math.max(balanceFromAccrual, pendingPaymentsAmount);
   }
 
-  return pendingPaymentsAmount > 0 ? pendingPaymentsAmount : Math.max(0, student.fee - getRevenueByStudentSync(studentId, records));
+  const reference = new Date();
+  const monthlyCollected = sumPayments(
+    records.filter(
+      (payment) =>
+        payment.studentId === studentId &&
+        isCollected(payment) &&
+        isSameMonth(payment.date, reference)
+    )
+  );
+  const currentMonthBalance = Math.max(0, student.fee - monthlyCollected);
+  return Math.max(currentMonthBalance, pendingPaymentsAmount);
 }
 
 function getRevenueByStudentSync(studentId: string, records: readonly Payment[]): number {
