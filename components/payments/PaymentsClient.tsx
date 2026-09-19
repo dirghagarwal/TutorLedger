@@ -72,7 +72,7 @@ export default function PaymentsClient({
     const result = await recordPayment({
       studentId: selectedStudentForPayment.id,
       amount: draft.amount,
-      date: new Date().toISOString().slice(0, 10),
+      date: draft.date,
       method: draft.method,
       status: draft.status,
       billingPeriod: draft.billingPeriod,
