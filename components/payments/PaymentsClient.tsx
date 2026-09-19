@@ -18,6 +18,7 @@ interface StudentBalanceItem {
   student: Student;
   outstandingBalance: number;
   lifetimePaid: number;
+  creditBalance: number;
 }
 
 interface PaymentsClientProps {
@@ -143,7 +144,7 @@ export default function PaymentsClient({
           {initialStudentBalances.length === 0 ? (
             <p className="py-4 text-sm text-muted-foreground">No students found.</p>
           ) : (
-            initialStudentBalances.map(({ student, outstandingBalance, lifetimePaid }) => (
+            initialStudentBalances.map(({ student, outstandingBalance, lifetimePaid, creditBalance }) => (
               <div key={student.id} className="flex flex-col gap-3 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-center gap-3">
                   <div
@@ -166,6 +167,11 @@ export default function PaymentsClient({
                       {outstandingBalance > 0 ? `${currencyFormatter.format(outstandingBalance)} due` : "Fully Paid"}
                     </p>
                     <p className="text-xs text-muted-foreground">Paid: {currencyFormatter.format(lifetimePaid)}</p>
+                    {creditBalance > 0 && (
+                      <p className="text-xs font-medium text-success">
+                        Advance credit: {currencyFormatter.format(creditBalance)}
+                      </p>
+                    )}
                   </div>
 
                   <Button
