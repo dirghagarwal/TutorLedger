@@ -154,7 +154,7 @@ export default function CommandBar() {
         date: paymentDate,
         method: (data.method as PaymentMethod) || PaymentMethod.UPI,
         status: PaymentStatus.PAID,
-        billingPeriod: new Intl.DateTimeFormat("en-IN", { month: "long", year: "numeric", timeZone: "Asia/Kolkata" }).format(new Date(`${paymentDate}T12:00:00Z`)),
+        billingPeriod: (data.billingPeriod as import("@/types/payment").BillingPeriod) || import("@/types/payment").BillingPeriod.MONTHLY,
         notes: String(data.notes || "Recorded via TutorLedger AI"),
       });
 
