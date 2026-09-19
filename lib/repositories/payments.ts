@@ -130,17 +130,20 @@ export async function createPaymentWithAllocations(
         });
 
         const candidateIds = candidateSessions.map((session) => session.id);
-        const previous: Array<{ sessionId: string; _sum: { amount: number | null } }> = candidateIds.length
-          ? await tx.paymentAllocation.groupBy({
-              by: ["sessionId"],
+        const previousAllocations = candidateIds.length
+          ? await tx.paymentAllocation.findMany({
               where: { sessionId: { in: candidateIds } },
-              _sum: { amount: true },
+              select: { sessionId: true, amount: true },
             })
           : [];
 
-        const previouslyAllocated = new Map(
-          previous.map((item) => [item.sessionId, item._sum.amount ?? 0])
-        );
+        const previouslyAllocated = new Map<string, number>();
+        for (const allocation of previousAllocations) {
+          previouslyAllocated.set(
+            allocation.sessionId,
+            (previouslyAllocated.get(allocation.sessionId) ?? 0) + allocation.amount
+          );
+        }
 
         let remaining = input.amount;
         const generated: PaymentAllocation[] = [];
