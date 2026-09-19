@@ -49,7 +49,7 @@ const feeTypeLabels: Record<FeeType, string> = {
 
 export default async function StudentProfilePage({
   params,
-}: PageProps<"/students/[id]">) {
+}: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [
     student,
