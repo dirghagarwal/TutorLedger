@@ -180,7 +180,7 @@ export default function TodayClasses({ initialItems }: Readonly<{ initialItems: 
       studentId: paymentFor.session.studentId,
       sessionId: paymentFor.session.id,
       amount: draft.amount,
-      date: today(),
+      date: draft.date,
       method: draft.method,
       status: draft.status,
       billingPeriod: draft.billingPeriod,
