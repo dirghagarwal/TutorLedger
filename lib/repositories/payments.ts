@@ -61,3 +61,43 @@ export async function createPaymentAllocation(input: PaymentAllocation): Promise
   const record = await prisma.paymentAllocation.create({ data: input });
   return toPaymentAllocation(record);
 }
+
+
+export async function createPaymentWithAllocations(
+  input: Payment,
+  allocations: PaymentAllocation[],
+): Promise<Payment> {
+  const record = await prisma.$transaction(async (tx) => {
+    if (allocations.length > 0) {
+      const sessions = await tx.session.findMany({
+        where: {
+          id: { in: allocations.map((allocation) => allocation.sessionId) },
+          studentId: input.studentId,
+        },
+        select: { id: true },
+      });
+      if (sessions.length !== allocations.length) {
+        throw new Error("One or more payment allocations do not belong to this student.");
+      }
+
+      const allocatedTotal = allocations.reduce((sum, allocation) => sum + allocation.amount, 0);
+      if (allocatedTotal > input.amount) {
+        throw new Error("Allocated class amounts cannot exceed the payment amount.");
+      }
+    }
+
+    const payment = await tx.payment.create({ data: input });
+    if (allocations.length > 0) {
+      await tx.paymentAllocation.createMany({
+        data: allocations.map((allocation) => ({
+          id: allocation.id,
+          paymentId: payment.id,
+          sessionId: allocation.sessionId,
+          amount: allocation.amount,
+        })),
+      });
+    }
+    return payment;
+  });
+  return toPayment(record);
+}
