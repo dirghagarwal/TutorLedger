@@ -46,6 +46,10 @@ jobs:
           4. Surrounding repository files needed to validate findings.
 
           Review the current branch against origin/main.
+          IMPORTANT: This is a headless CI review. Do NOT use terminal/command/shell tools,
+          do NOT run git, npm, tests, builds, or any other commands. All required review
+          inputs are already provided in .gemini-review-diff.txt and repository files.
+          Use file-reading tools only to inspect the provided diff and surrounding source.
           Focus on real bugs and production risks, especially data integrity, payments,
           payment allocations, session identity, dates/timezones, AI safety/context,
           performance/N+1, React/Next.js correctness, and UX race conditions.
