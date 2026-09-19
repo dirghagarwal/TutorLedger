@@ -247,6 +247,7 @@ export default function MonthlyClassTracker({
         attendance: attendance.find((a) => a.sessionId === selectedDetailsSessionId) ?? null,
         payments: paymentsBySession[selectedDetailsSessionId] || [],
         notes: notesBySession[selectedDetailsSessionId] || [],
+        feeType: student.feeType,
         attachments: attachmentsBySession[selectedDetailsSessionId] || [],
       }
     : null;
