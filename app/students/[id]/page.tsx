@@ -31,7 +31,7 @@ import {
   getTodaysClasses,
 } from "@/lib/services/schedule";
 import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
-import { findPayments } from "@/lib/repositories/payments";
+import { findPaymentAllocationsBySessionIds, findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
 
 export const dynamic = "force-dynamic";
@@ -89,10 +89,21 @@ export default async function StudentProfilePage({
   const [sessionNotes, sessionAttachments] = await Promise.all([
     findSessionNotesBySessionIds(studentSessions.map((session) => session.id)),
     findAttachmentsBySessionIds(studentSessions.map((session) => session.id)),
+    findPaymentAllocationsBySessionIds(studentSessions.map((session) => session.id)),
   ]);
 
   const paymentsBySession = Object.fromEntries(
-    studentSessions.map((session) => [session.id, allPayments.filter((payment) => payment.sessionId === session.id)])
+    studentSessions.map((session) => [
+      session.id,
+      allPayments.filter((payment) => payment.sessionId === session.id),
+    ])
+  );
+  // Allocation records are loaded in one query so class-level payment coverage can be surfaced without N+1 reads.
+  const allocationsBySession = Object.fromEntries(
+    studentSessions.map((session) => [
+      session.id,
+      paymentAllocations.filter((allocation) => allocation.sessionId === session.id),
+    ])
   );
   const notesBySession = Object.fromEntries(
     studentSessions.map((session) => [session.id, sessionNotes.filter((note) => note.sessionId === session.id)])
