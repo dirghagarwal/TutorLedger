@@ -16,6 +16,8 @@ import { getSessionStatusForAttendance } from "@/lib/services/workflow";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { type Payment } from "@/types/payment";
 import { SessionStatus, type Session } from "@/types/session";
+import { BillingPeriod } from "@/types/payment";
+import { FeeType } from "@/types/students";
 
 
 export interface TodayClassItem {
@@ -24,6 +26,7 @@ export interface TodayClassItem {
   studentColor: string;
   attendance: Attendance | null;
   payments: Payment[];
+  feeType: FeeType;
 }
 
 function getInitials(name: string) { return name.split(/\s+/).filter((part) => part !== "&").slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase(); }
@@ -265,6 +268,7 @@ export default function TodayClasses({ initialItems }: Readonly<{ initialItems: 
             if (!open) setPaymentFor(null);
           }}
           onSubmit={submitPayment}
+          defaultBillingPeriod={paymentFor.feeType === FeeType.CLASSWISE ? BillingPeriod.CLASSWISE : BillingPeriod.MONTHLY}
         />
       )}
     </section>
