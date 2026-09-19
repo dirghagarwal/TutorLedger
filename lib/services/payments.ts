@@ -47,57 +47,147 @@ export async function getPaymentHistory(
     .sort((first, second) => second.date.localeCompare(first.date));
 }
 
+function monthIndex(monthKey: string): number {
+  const [yearText, monthText] = monthKey.split("-");
+  const year = Number(yearText);
+  const month = Number(monthText);
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return Number.NaN;
+  }
+  return year * 12 + month - 1;
+}
+
+function monthKeyFromDate(date: string): string | null {
+  const match = date.match(/^(\\d{4})-(\\d{2})-\\d{2}$/);
+  return match ? \`${1}-${2}\` : null;
+}
+
+function getMonthlyAccrual(
+  studentId: string,
+  fee: number,
+  records: readonly Payment[],
+  sessions: readonly Session[],
+  currentMonthKey: string,
+): number {
+  const observedMonths = [
+    ...records
+      .filter((payment) => payment.studentId === studentId && payment.billingPeriod === BillingPeriod.MONTHLY)
+      .map((payment) => monthKeyFromDate(payment.date)),
+    ...sessions
+      .filter((session) => session.studentId === studentId)
+      .map((session) => monthKeyFromDate(session.date)),
+  ].filter((month): month is string => month !== null && month <= currentMonthKey);
+
+  const startMonthKey = observedMonths.length > 0
+    ? observedMonths.reduce((earliest, current) => (current < earliest ? current : earliest))
+    : currentMonthKey;
+
+  const startIndex = monthIndex(startMonthKey);
+  const currentIndex = monthIndex(currentMonthKey);
+  if (Number.isNaN(startIndex) || Number.isNaN(currentIndex)) return fee;
+
+  const monthsElapsed = Math.max(1, currentIndex - startIndex + 1);
+  return monthsElapsed * fee;
+}
+
+interface BalanceSummary {
+  outstanding: number;
+  credit: number;
+}
+
+function calculateBalance(
+  student: Student,
+  records: readonly Payment[],
+  sessions: readonly Session[],
+  attendanceRecords: readonly Attendance[],
+): BalanceSummary {
+  if (student.feeType === FeeType.CLASSWISE) {
+    const studentSessionIds = new Set(
+      sessions.filter((session) => session.studentId === student.id).map((session) => session.id),
+    );
+
+    const attendedCount = attendanceRecords.filter(
+      (attendance) =>
+        studentSessionIds.has(attendance.sessionId) &&
+        attendance.status === AttendanceStatus.PRESENT,
+    ).length;
+
+    const accruedFees = attendedCount * student.fee;
+    const collectedFees = sumPayments(
+      records.filter(
+        (payment) =>
+          payment.studentId === student.id &&
+          payment.billingPeriod === "CLASSWISE" &&
+          isCollected(payment),
+      ),
+    );
+
+    return {
+      outstanding: Math.max(0, accruedFees - collectedFees),
+      credit: Math.max(0, collectedFees - accruedFees),
+    };
+  }
+
+  const currentMonthKey = getTodayDateKey().slice(0, 7);
+  const accruedFees = getMonthlyAccrual(
+    student.id,
+    student.fee,
+    records,
+    sessions,
+    currentMonthKey,
+  );
+  const collectedFees = sumPayments(
+    records.filter(
+      (payment) =>
+        payment.studentId === student.id &&
+        payment.billingPeriod === "MONTHLY" &&
+        isCollected(payment) &&
+        payment.date.slice(0, 7) <= currentMonthKey,
+    ),
+  );
+
+  return {
+    outstanding: Math.max(0, accruedFees - collectedFees),
+    credit: Math.max(0, collectedFees - accruedFees),
+  };
+}
+
 export async function getOutstandingBalance(
   studentId: string,
   allPayments?: readonly Payment[],
   allStudents?: readonly Student[],
   allSessions?: readonly Session[],
-  allAttendance?: readonly Attendance[]
+  allAttendance?: readonly Attendance[],
 ): Promise<number> {
   const records = await resolvePayments(allPayments);
   const student = allStudents
     ? allStudents.find((s) => s.id === studentId)
     : await findStudentById(studentId);
 
-  const pendingPaymentsAmount = sumPayments(
-    records.filter(
-      (payment) =>
-        payment.studentId === studentId && payment.status === PaymentStatus.PENDING
-    )
-  );
+  if (!student) return 0;
 
-  if (!student) return pendingPaymentsAmount;
+  const sessions = allSessions ? [...allSessions] : await findSessions();
+  const attendanceRecords = allAttendance ? [...allAttendance] : await findAttendance();
+  return calculateBalance(student, records, sessions, attendanceRecords).outstanding;
+}
 
-  if (student.feeType === FeeType.CLASSWISE) {
-    const attendanceRecords = allAttendance ? [...allAttendance] : await findAttendance();
-    const sessions = allSessions ? [...allSessions] : await findSessions();
+export async function getAdvanceCreditBalance(
+  studentId: string,
+  allPayments?: readonly Payment[],
+  allStudents?: readonly Student[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[],
+): Promise<number> {
+  const records = await resolvePayments(allPayments);
+  const student = allStudents
+    ? allStudents.find((s) => s.id === studentId)
+    : await findStudentById(studentId);
 
-    const studentSessionIds = new Set(
-      sessions.filter((s) => s.studentId === studentId).map((s) => s.id)
-    );
+  if (!student) return 0;
 
-    const attendedCount = attendanceRecords.filter(
-      (a) => studentSessionIds.has(a.sessionId) && a.status === AttendanceStatus.PRESENT
-    ).length;
-
-    const accruedFees = attendedCount * student.fee;
-    const paidFees = getRevenueByStudentSync(studentId, records);
-    const balanceFromAccrual = Math.max(0, accruedFees - paidFees);
-
-    return Math.max(balanceFromAccrual, pendingPaymentsAmount);
-  }
-
-  const currentMonthKey = getTodayDateKey().slice(0, 7);
-  const monthlyCollected = sumPayments(
-    records.filter(
-      (payment) =>
-        payment.studentId === studentId &&
-        isCollected(payment) &&
-        payment.date.slice(0, 7) === currentMonthKey
-    )
-  );
-  const currentMonthBalance = Math.max(0, student.fee - monthlyCollected);
-  return Math.max(currentMonthBalance, pendingPaymentsAmount);
+  const sessions = allSessions ? [...allSessions] : await findSessions();
+  const attendanceRecords = allAttendance ? [...allAttendance] : await findAttendance();
+  return calculateBalance(student, records, sessions, attendanceRecords).credit;
 }
 
 function getRevenueByStudentSync(studentId: string, records: readonly Payment[]): number {
