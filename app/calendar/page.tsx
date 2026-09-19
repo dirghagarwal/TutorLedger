@@ -23,7 +23,7 @@ import type { Student } from "@/types/students";
 
 export const dynamic = "force-dynamic";
 
-export default async function CalendarPage({ searchParams }: PageProps<"/calendar">) {
+export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ month?: string }> }) {
   const requestedMonth = String((await searchParams)?.month ?? "");
   const validMonth = /^\d{4}-\d{2}$/.test(requestedMonth) ? requestedMonth : null;
   const rawDate = validMonth ? new Date(`${validMonth}-01T00:00:00`) : new Date();

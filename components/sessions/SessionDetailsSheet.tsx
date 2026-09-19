@@ -136,7 +136,7 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
       studentId: currentRecord.session.studentId,
       sessionId: currentRecord.session.id,
       amount: draft.amount,
-      date: new Date().toISOString().slice(0, 10),
+      date: draft.date,
       method: draft.method,
       status: draft.status,
       billingPeriod: draft.billingPeriod,

@@ -6,9 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { BillingPeriod, PaymentMethod, PaymentStatus } from "@/types/payment";
+import { getTodayDateKey } from "@/lib/utils/date";
 
 export interface PaymentDraft {
   amount: number;
+  date: string;
   method: PaymentMethod;
   status: PaymentStatus;
   billingPeriod: BillingPeriod;
@@ -24,6 +26,7 @@ interface PaymentDialogProps {
 
 export default function PaymentDialog({ open, studentName, onOpenChange, onSubmit }: Readonly<PaymentDialogProps>) {
   const [amount, setAmount] = useState("");
+  const [date, setDate] = useState(() => getTodayDateKey());
   const [method, setMethod] = useState<PaymentMethod>(PaymentMethod.UPI);
   const [status, setStatus] = useState<PaymentStatus>(PaymentStatus.PAID);
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(BillingPeriod.MONTHLY);
@@ -33,10 +36,11 @@ export default function PaymentDialog({ open, studentName, onOpenChange, onSubmi
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setSaving(true);
-    const succeeded = await onSubmit({ amount: Number(amount), method, status, billingPeriod, notes });
+    const succeeded = await onSubmit({ amount: Number(amount), date, method, status, billingPeriod, notes });
     setSaving(false);
     if (!succeeded) return;
     setAmount("");
+    setDate(getTodayDateKey());
     setNotes("");
     onOpenChange(false);
   };
@@ -46,7 +50,7 @@ export default function PaymentDialog({ open, studentName, onOpenChange, onSubmi
       <DialogContent className="w-[calc(100%-1rem)] border-border-strong bg-surface text-foreground sm:max-w-lg">
         <DialogHeader><DialogTitle>Record payment</DialogTitle><DialogDescription>Record a payment from {studentName}.</DialogDescription></DialogHeader>
         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
-          <label className="grid gap-1.5 text-sm font-medium">Amount<Input min={1} required type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label>
+          <div className="grid gap-4 sm:grid-cols-2"><label className="grid gap-1.5 text-sm font-medium">Amount<Input min={1} required type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label className="grid gap-1.5 text-sm font-medium">Payment date<Input required type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
           <div className="grid gap-4 sm:grid-cols-3">
             <label className="grid gap-1.5 text-sm font-medium">Method<select className="min-h-11 rounded-lg border border-input bg-transparent px-2 text-sm sm:min-h-8" value={method} onChange={(event) => setMethod(event.target.value as PaymentMethod)}><option value={PaymentMethod.UPI}>UPI</option><option value={PaymentMethod.CASH}>Cash</option><option value={PaymentMethod.BANK_TRANSFER}>Bank transfer</option><option value={PaymentMethod.CARD}>Card</option></select></label>
             <label className="grid gap-1.5 text-sm font-medium">Status<select className="min-h-11 rounded-lg border border-input bg-transparent px-2 text-sm sm:min-h-8" value={status} onChange={(event) => setStatus(event.target.value as PaymentStatus)}><option value={PaymentStatus.PAID}>Paid</option><option value={PaymentStatus.PARTIAL}>Partial</option><option value={PaymentStatus.PENDING}>Pending</option></select></label>

@@ -58,7 +58,7 @@ export default function MonthlyClassTracker({
 
   const todayKey = getTodayDateKey();
   const [selectedMonth, setSelectedMonth] = useState(() => {
-    return new Date().toISOString().slice(0, 7); // "YYYY-MM"
+    return getTodayDateKey().slice(0, 7); // "YYYY-MM" in Asia/Kolkata
   });
 
   // Modal State for Homework / Notes
@@ -121,7 +121,7 @@ export default function MonthlyClassTracker({
 
     if (matchingSchedules.length > 0) {
       for (const sched of matchingSchedules) {
-        const existingSession = matchingSessions.find((s) => s.scheduleId === sched.id || s.date === dateKey);
+        const existingSession = matchingSessions.find((s) => s.scheduleId === sched.id);
         const existingAtt = existingSession
           ? attendance.find((a) => a.sessionId === existingSession.id)
           : undefined;

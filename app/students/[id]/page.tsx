@@ -31,7 +31,7 @@ import {
   getTodaysClasses,
 } from "@/lib/services/schedule";
 import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
-import { findPayments } from "@/lib/repositories/payments";
+import { findPaymentAllocationsBySessionIds, findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
 
 export const dynamic = "force-dynamic";
@@ -49,7 +49,7 @@ const feeTypeLabels: Record<FeeType, string> = {
 
 export default async function StudentProfilePage({
   params,
-}: PageProps<"/students/[id]">) {
+}: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [
     student,
@@ -86,13 +86,25 @@ export default async function StudentProfilePage({
   const recentPayment = await getRecentPayment(student.id, allPayments);
   const studentSessions = allSessions.filter((s) => s.studentId === student.id);
 
-  const [sessionNotes, sessionAttachments] = await Promise.all([
+  const [sessionNotes, sessionAttachments, paymentAllocations] = await Promise.all([
     findSessionNotesBySessionIds(studentSessions.map((session) => session.id)),
     findAttachmentsBySessionIds(studentSessions.map((session) => session.id)),
+    findPaymentAllocationsBySessionIds(studentSessions.map((session) => session.id)),
   ]);
 
   const paymentsBySession = Object.fromEntries(
-    studentSessions.map((session) => [session.id, allPayments.filter((payment) => payment.sessionId === session.id)])
+    studentSessions.map((session) => {
+      const directPayments = allPayments.filter((payment) => payment.sessionId === session.id);
+      const allocatedPayments = paymentAllocations
+        .filter((allocation) => allocation.sessionId === session.id)
+        .map((allocation) => {
+          const payment = allPayments.find((candidate) => candidate.id === allocation.paymentId);
+          return payment ? { ...payment, amount: allocation.amount } : null;
+        })
+        .filter((payment): payment is typeof allPayments[number] => payment !== null);
+      const seen = new Set(directPayments.map((payment) => payment.id));
+      return [session.id, [...directPayments, ...allocatedPayments.filter((payment) => !seen.has(payment.id))]];
+    })
   );
   const notesBySession = Object.fromEntries(
     studentSessions.map((session) => [session.id, sessionNotes.filter((note) => note.sessionId === session.id)])

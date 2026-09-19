@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { upsertAttendance } from "@/lib/repositories/attendance";
-import { createPayment, findPaymentById } from "@/lib/repositories/payments";
+import { createPaymentWithAllocations, findPaymentById } from "@/lib/repositories/payments";
 import {
   ensureSessionExists,
   findSessionById,
@@ -17,6 +17,7 @@ import {
 } from "@/lib/validations/workflow";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
+import type { PaymentAllocation } from "@/types/payment-allocation";
 import { SessionStatus, type Session } from "@/types/session";
 
 type AttendanceResult = { ok: true; attendance: Attendance; session: Session } | { ok: false; error: string };
@@ -165,11 +166,23 @@ export async function recordPayment(input: unknown): Promise<PaymentResult> {
   try {
     const values = paymentInputSchema.parse(input);
     const id = crypto.randomUUID();
-    const payment = await createPayment({
+    const allocations: PaymentAllocation[] = values.allocations.map((allocation) => ({
+      id: crypto.randomUUID(),
+      paymentId: id,
+      sessionId: allocation.sessionId,
+      amount: allocation.amount,
+    }));
+    const payment = await createPaymentWithAllocations({
       id,
-      ...values,
+      studentId: values.studentId,
+      sessionId: values.sessionId,
+      amount: values.amount,
+      date: values.date,
+      method: values.method,
       status: values.status as PaymentStatus,
-    });
+      billingPeriod: values.billingPeriod,
+      notes: values.notes,
+    }, allocations);
 
     const verified = await findPaymentById(id);
     if (!verified) {

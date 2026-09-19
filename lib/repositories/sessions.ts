@@ -80,21 +80,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
     if (existingById) return existingById;
   }
 
-  // 2. Check if session already exists for student + date (+ scheduleId if present)
-  const existingRecords = await prisma.session.findMany({
-    where: {
-      studentId: input.studentId,
-      date: input.date,
-      ...(input.scheduleId ? { scheduleId: input.scheduleId } : {}),
-    },
-    orderBy: { startTime: "asc" },
-  });
-
-  if (existingRecords.length > 0 && existingRecords[0]) {
-    return toSession(existingRecords[0]);
-  }
-
-  // 3. Resolve schedule details if scheduleId is not provided
+  // 2. Resolve schedule details if scheduleId is not provided
   let scheduleId = input.scheduleId;
   let startTime = input.startTime ?? "16:30";
   let endTime = input.endTime ?? "17:30";
@@ -114,15 +100,27 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
 
   const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}`;
 
-  return upsertSession({
-    id: canonicalId,
-    studentId: input.studentId,
-    scheduleId,
-    date: input.date,
-    startTime,
-    endTime,
-    status: SessionStatus.PLANNED,
+  // The composite unique key makes this operation safe under concurrent requests:
+  // two identical "mark taken" requests converge on the same canonical session.
+  const record = await prisma.session.upsert({
+    where: {
+      studentId_date: {
+        studentId: input.studentId,
+        date: input.date,
+      },
+    },
+    create: {
+      id: canonicalId,
+      studentId: input.studentId,
+      scheduleId,
+      date: input.date,
+      startTime,
+      endTime,
+      status: SessionStatus.PLANNED,
+    },
+    update: {},
   });
+  return toSession(record);
 }
 
 export async function updateSessionStatus(

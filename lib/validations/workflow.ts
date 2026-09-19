@@ -59,6 +59,10 @@ export const paymentInputSchema = z.object({
   ]),
   billingPeriod: z.enum([BillingPeriod.MONTHLY, BillingPeriod.CLASSWISE]),
   notes: z.string().default(""),
+  allocations: z.array(z.object({
+    sessionId: z.string().min(1),
+    amount: z.number().int().positive(),
+  })).optional().default([]),
 });
 
 export type AttendanceInput = z.infer<typeof attendanceInputSchema>;
