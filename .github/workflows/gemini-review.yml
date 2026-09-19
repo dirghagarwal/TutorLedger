@@ -51,8 +51,8 @@ jobs:
             $settings.permissions | Add-Member -NotePropertyName allow -NotePropertyValue @()
           }
           $allow = @($settings.permissions.allow)
-          if ($allow -notcontains "command(git)") {
-            $allow += "command(git)"
+          if ($allow -notcontains "command(regex:git .*)") {
+            $allow += "command(regex:git .*)"
           }
           $settings.permissions.allow = $allow
           $settings | ConvertTo-Json -Depth 10 | Set-Content -Encoding utf8 -LiteralPath $settingsPath
