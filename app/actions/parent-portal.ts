@@ -44,5 +44,5 @@ export async function revokeParentPortal(portalId: string) {
     where: { id: portalId, teacherId: teacher.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
-  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/settings");
 }
