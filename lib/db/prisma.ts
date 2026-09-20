@@ -1,4 +1,5 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */\nimport { PrismaClient } from "@prisma/client";
+/* eslint-disable @typescript-eslint/no-explicit-any */
+import { PrismaClient } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
 
 const globalForPrisma = globalThis as unknown as {
@@ -25,7 +26,8 @@ function createScopedClient() {
     name: "tutor-ledger-tenant-scope",
     query: {
       $allModels: {
-        async $allOperations(context: any) {\n          const { model, operation, args, query } = context;
+        async $allOperations(context: any) {
+          const { model, operation, args, query } = context;
           if (!ownedModels.has(model)) return query(args);
 
           const teacherId = await getRequestTeacherId();
