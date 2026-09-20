@@ -1,4 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { Prisma } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
 import { rawPrisma } from "@/lib/db/raw";
 
@@ -18,10 +19,10 @@ export interface AuditEntry {
   resolvedDate?: string;
   userPrompt: string;
   result: string;
-  metadata?: Record<string, unknown>;
+  metadata?: Prisma.InputJsonValue;
 }
 
-const auditLogs: AuditEntry[] = []; // retained only as a compatibility cache; DB is authoritative.
+
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 function confirmationSecret(): string {
@@ -113,11 +114,29 @@ export async function logAiAuditTrail(
     },
   });
 
-  // Keep an in-process snapshot for legacy readers, but never rely on it for persistence.
-  auditLogs.push(record);
-  if (auditLogs.length > 100) auditLogs.shift();
 }
 
-export function getAuditLogs(): readonly AuditEntry[] {
-  return auditLogs;
+export async function getAuditLogs(limit = 100): Promise<AuditEntry[]> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+
+  const rows = await rawPrisma.auditLog.findMany({
+    where: { teacherId },
+    orderBy: { createdAt: "desc" },
+    take: Math.max(1, Math.min(limit, 500)),
+  });
+
+  return rows.map((row) => ({
+    timestamp: row.createdAt.toISOString(),
+    teacherId: row.teacherId,
+    action: row.action,
+    entityType: row.entityType ?? undefined,
+    entityId: row.entityId ?? undefined,
+    studentId: row.studentId ?? undefined,
+    sessionId: row.sessionId ?? undefined,
+    resolvedDate: row.resolvedDate ?? undefined,
+    userPrompt: row.userPrompt,
+    result: row.result,
+    metadata: row.metadata as Prisma.InputJsonValue | undefined,
+  }));
 }
