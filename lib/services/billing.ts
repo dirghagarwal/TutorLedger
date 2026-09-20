@@ -48,8 +48,9 @@ export function calculateMonthlyAccruedFee(
   monthlyFee: number,
   currentMonth: string,
   historicalDates: readonly string[],
+  explicitStartMonth?: string | null,
 ): number {
-  const startMonth = getEarliestBillingMonth(currentMonth, historicalDates);
+  const startMonth = getEarliestBillingMonth(currentMonth, historicalDates, explicitStartMonth);
   return Math.max(0, monthlyFee) * countInclusiveCalendarMonths(startMonth, currentMonth);
 }
 
