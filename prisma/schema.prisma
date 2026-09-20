@@ -70,6 +70,7 @@ model Student {
   subject   String
   feeType   String
   fee       Int
+  billingStartMonth String?
   active    Boolean
   color     String
   teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
