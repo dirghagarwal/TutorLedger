@@ -59,7 +59,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   let endTime = input.endTime ?? "17:30";
 
   if (!scheduleId) {
-    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true } });
+    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true }, orderBy: { startTime: "asc" } });
     if (schedules.length > 0 && schedules[0]) {
       scheduleId = schedules[0].id;
       startTime = schedules[0].startTime;
