@@ -168,6 +168,8 @@ export async function getRevenueByStudent(
   return getRevenueByStudentSync(studentId, records);
 }
 
+// "Pending fees" is derived from the canonical accrued-vs-collected ledger.
+// A Payment with status=PENDING is a transaction state, not an additional fee balance.
 export async function getPendingStudents(
   allStudents?: readonly Student[],
   allPayments?: readonly Payment[],
