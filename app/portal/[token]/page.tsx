@@ -21,7 +21,7 @@ export default async function ParentPortalPage({
 
   const [sessions, notes, attendance] = await Promise.all([
     rawPrisma.session.findMany({
-      where: { id: { not: undefined }, studentId: portal.studentId, teacherId: portal.teacherId },
+      where: { studentId: portal.studentId, teacherId: portal.teacherId },
       orderBy: [{ date: "desc" }, { startTime: "desc" }],
       take: 40,
       select: { id: true, date: true, startTime: true, endTime: true, status: true },
