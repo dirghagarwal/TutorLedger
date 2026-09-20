@@ -188,6 +188,8 @@ export default async function StudentProfilePage({
             </CardContent>
           </Card>
 
+          <ParentPortalButton studentId={student.id} />
+
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <AttendanceTimeline records={studentAttendance} />
             <Card className="h-fit border-border-strong bg-surface text-foreground shadow-card">
