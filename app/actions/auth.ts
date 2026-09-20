@@ -78,3 +78,34 @@ export async function createTeacherAccount(formData: FormData) {
   void current;
   redirect("/settings");
 }
+
+
+export async function registerTeacher(formData: FormData) {
+  const parsed = credentialsSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  const name = String(formData.get("name") ?? "").trim();
+
+  if (!parsed.success || name.length < 2) {
+    redirect("/register?error=invalid");
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const existing = await rawPrisma.teacher.findUnique({ where: { email } });
+  if (existing) {
+    redirect("/register?error=exists");
+  }
+
+  const teacher = await rawPrisma.teacher.create({
+    data: {
+      id: crypto.randomUUID(),
+      name,
+      email,
+      passwordHash: hashPassword(parsed.data.password),
+    },
+  });
+
+  await createTeacherSession(teacher.id);
+  redirect("/");
+}
