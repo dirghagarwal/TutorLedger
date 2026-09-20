@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { loginTeacher } from "@/app/actions/auth";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +34,9 @@ export default async function LoginPage({
             Sign in
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Your workspace is private to your teacher account.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Your workspace is private to your teacher account. <Link href="/register" className="text-foreground underline underline-offset-4">Create an account</Link>
+        </p>
       </div>
     </main>
   );
