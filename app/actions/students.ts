@@ -3,11 +3,11 @@
 import { revalidatePath } from "next/cache";
 
 import { logAiAuditTrail } from "@/lib/services/ai-safety";
-import { findStudentById } from "@/lib/repositories/students";
 
 import {
   archiveStudent as archiveStudentRecord,
   createStudent,
+  findStudentById,
   deleteStudent as deleteStudentRecord,
   updateStudent,
   type StudentInput,
