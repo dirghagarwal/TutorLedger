@@ -54,7 +54,7 @@ export async function setupTeacher(formData: FormData) {
     (expectedSetupKey ? matchesSetupKey(setupKey, expectedSetupKey) : false) ||
     (expectedInviteCode ? matchesSetupKey(setupKey, expectedInviteCode) : false);
 
-  if (process.env.NODE_ENV === "production" && !expectedSetupKey) {
+  if (process.env.NODE_ENV === "production" && !expectedSetupKey && !expectedInviteCode) {
     redirect("/login?error=setup-disabled");
   }
 
