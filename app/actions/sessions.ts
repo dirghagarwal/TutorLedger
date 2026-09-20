@@ -9,7 +9,7 @@ import { createSessionNote } from "@/lib/repositories/session-notes";
 import { ensureSessionExists, findSessionById, upsertSession } from "@/lib/repositories/sessions";
 import { logAiAuditTrail } from "@/lib/services/ai-safety";
 import { getTodayDateKey } from "@/lib/utils/date";
-import { attachmentTypeSchema, sessionNoteInputSchema } from "@/lib/validations/session";
+import { attachmentTypeSchema, sessionEditInputSchema, sessionNoteInputSchema } from "@/lib/validations/session";
 import { AttendanceStatus } from "@/types/attendance";
 import { PaymentMethod, PaymentStatus } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
@@ -147,6 +147,7 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
 
 export interface AddPastClassInput {
   studentId: string;
+  scheduleId?: string;
   date: string;
   startTime: string;
   endTime: string;
@@ -167,6 +168,7 @@ export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok
 
     const canonicalSession = await ensureSessionExists({
       studentId: input.studentId,
+      scheduleId: input.scheduleId,
       date: input.date,
       startTime: input.startTime,
       endTime: input.endTime,
@@ -263,5 +265,79 @@ export async function markClassTakenFromProfile(
     return { ok: true, sessionId: canonicalSession.id };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Unable to mark class taken." };
+  }
+}
+
+export async function updateSessionAction(
+  input: unknown
+): Promise<{ ok: true; sessionId: string } | { ok: false; error: string }> {
+  try {
+    const values = sessionEditInputSchema.parse(input);
+    const session = await findSessionById(values.sessionId);
+    if (!session) {
+      return { ok: false, error: "Session record not found." };
+    }
+
+    const conflictingSession = await tenantPrisma.session.findFirst({
+      where: {
+        studentId: session.studentId,
+        date: values.date,
+        startTime: values.startTime,
+        id: { not: session.id },
+      },
+      select: { id: true },
+    });
+
+    if (conflictingSession) {
+      return {
+        ok: false,
+        error: "Another class for this student already uses that date and start time.",
+      };
+    }
+
+    await tenantPrisma.$transaction(async (tx) => {
+      await tx.session.update({
+        where: { id: session.id },
+        data: {
+          date: values.date,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          status: values.status,
+        },
+      });
+
+      const existingAttendance = await tx.attendance.findUnique({
+        where: { sessionId: session.id },
+      });
+
+      if (existingAttendance) {
+        await tx.attendance.update({
+          where: { sessionId: session.id },
+          data: {
+            date: values.date,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            ...(values.attendanceStatus ? { status: values.attendanceStatus } : {}),
+          },
+        });
+      } else if (values.attendanceStatus) {
+        await tx.attendance.create({
+          data: {
+            id: "attendance-" + session.id,
+            sessionId: session.id,
+            date: values.date,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            status: values.attendanceStatus,
+            notes: "Recorded via manual session edit",
+          },
+        });
+      }
+    });
+
+    revalidateSessionPaths(session.id, session.studentId);
+    return { ok: true, sessionId: session.id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to update session." };
   }
 }
