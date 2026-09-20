@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { getRequestTeacherId } from "@/lib/auth/session";
 import { SessionStatus, type Session } from "@/types/session";
 
 export interface SessionUpdateData {
@@ -40,6 +41,8 @@ export interface SessionUpsertInput {
 }
 
 export async function upsertSession(input: SessionUpsertInput): Promise<Session> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
   const record = await prisma.session.upsert({
     where: { id: input.id },
     create: {
@@ -53,6 +56,7 @@ export async function upsertSession(input: SessionUpsertInput): Promise<Session>
       startedAt: input.startedAt ?? null,
       endedAt: input.endedAt ?? null,
       durationMinutes: input.durationMinutes ?? null,
+      teacherId,
     },
     update: {
       status: input.status,
@@ -74,21 +78,20 @@ export interface EnsureSessionInput {
 }
 
 export async function ensureSessionExists(input: EnsureSessionInput): Promise<Session> {
-  // 1. Check if session already exists by exact ID
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+
   if (input.sessionId) {
     const existingById = await findSessionById(input.sessionId);
     if (existingById) return existingById;
   }
 
-  // 2. Resolve schedule details if scheduleId is not provided
   let scheduleId = input.scheduleId;
   let startTime = input.startTime ?? "16:30";
   let endTime = input.endTime ?? "17:30";
 
   if (!scheduleId) {
-    const schedules = await prisma.schedule.findMany({
-      where: { studentId: input.studentId, active: true },
-    });
+    const schedules = await prisma.schedule.findMany({ where: { studentId: input.studentId, active: true } });
     if (schedules.length > 0 && schedules[0]) {
       scheduleId = schedules[0].id;
       startTime = schedules[0].startTime;
@@ -99,16 +102,8 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   }
 
   const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}`;
-
-  // The composite unique key makes this operation safe under concurrent requests:
-  // two identical "mark taken" requests converge on the same canonical session.
   const record = await prisma.session.upsert({
-    where: {
-      studentId_date: {
-        studentId: input.studentId,
-        date: input.date,
-      },
-    },
+    where: { studentId_date: { studentId: input.studentId, date: input.date } },
     create: {
       id: canonicalId,
       studentId: input.studentId,
@@ -117,6 +112,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
       startTime,
       endTime,
       status: SessionStatus.PLANNED,
+      teacherId,
     },
     update: {},
   });
