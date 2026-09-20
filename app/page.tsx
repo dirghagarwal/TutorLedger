@@ -9,28 +9,21 @@ export default function Home() {
     <main className="min-h-screen bg-background text-foreground lg:flex">
       <Sidebar />
       <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[42rem] -translate-x-1/2 rounded-full bg-blue-600/[0.045] blur-[120px]" />
-          <div className="absolute left-[20%] top-[52%] h-[20rem] w-[28rem] rounded-full bg-violet-500/[0.025] blur-[110px]" />
-        </div>
+        <div className="pointer-events-none absolute inset-0 ambient-gradient" />
+        <div className="pointer-events-none absolute left-1/2 top-[28%] h-[26rem] w-[46rem] -translate-x-1/2 rounded-full bg-blue-500/[0.025] blur-[140px]" />
 
         <Topbar />
 
-        <div className="relative flex flex-1 items-center justify-center px-5 pb-20 pt-8 sm:px-8">
+        <div className="relative flex flex-1 items-center justify-center px-5 pb-24 pt-8 sm:px-8">
           <div className="w-full max-w-4xl -translate-y-8">
-            <div className="mb-7 text-center">
-              <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-2xl bg-white/[0.045] ring-1 ring-white/8">
-                <span className="text-sm font-semibold tracking-tight">TL</span>
-              </div>
-              <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">How can I help?</h1>
-              <p className="mt-2 text-sm text-white/40">Record classes, payments, homework and more in plain language.</p>
+            <div className="mb-6 text-center">
+              <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-white/25">TutorLedger</p>
+              <h1 className="mt-3 text-3xl font-semibold tracking-[-0.035em] text-white sm:text-4xl">
+                What would you like to record?
+              </h1>
             </div>
 
             <CommandBar minimal />
-
-            <p className="mt-4 text-center text-[11px] text-white/25">
-              Try: “Took Tanay’s class today” · “Aahan paid ₹2,000” · “Show unpaid classes”
-            </p>
           </div>
         </div>
       </section>
