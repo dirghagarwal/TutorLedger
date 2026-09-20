@@ -31,7 +31,7 @@ test("monthly billing uses explicit enrollment month even when there is no activ
 test("an explicit future billing month does not accrue fees before enrollment", () => {
   assert.equal(
     calculateMonthlyAccruedFee(2000, "2026-09", ["2026-07-10"], "2026-10"),
-    6000,
+    0,
   );
 });
 
