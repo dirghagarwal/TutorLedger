@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { getRequestTeacherId } from "@/lib/auth/session";
 import { FeeType, type Student } from "@/types/students";
 
 export type StudentInput = Omit<Student, "id">;
@@ -19,18 +20,15 @@ export async function findStudentById(id: string): Promise<Student | null> {
 
 export async function findStudentByName(name: string): Promise<Student | null> {
   const records = await prisma.student.findMany({
-    where: {
-      name: {
-        contains: name,
-        mode: "insensitive",
-      },
-    },
+    where: { name: { contains: name, mode: "insensitive" } },
   });
   return records.length > 0 ? toStudent(records[0]) : null;
 }
 
 export async function createStudent(input: Student): Promise<Student> {
-  const record = await prisma.student.create({ data: input });
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+  const record = await prisma.student.create({ data: { ...input, teacherId } as never });
   return toStudent(record);
 }
 
