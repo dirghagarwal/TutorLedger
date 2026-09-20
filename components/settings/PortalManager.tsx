@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { createParentPortal, revokeParentPortals } from "@/app/actions/parent-portal";
+import { createParentPortal, revokeParentPortal } from "@/app/actions/parent-portal";
 
 type Student = { id: string; name: string };
 type Portal = { id: string; studentName: string; showFees: boolean; expiresAt: string; revokedAt: string | null };
