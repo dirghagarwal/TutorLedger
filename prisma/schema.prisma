@@ -7,17 +7,57 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Teacher {
+  id            String          @id
+  name          String
+  email         String?         @unique
+  passwordHash  String?
+  createdAt     DateTime        @default(now())
+  students      Student[]
+  sessions      TeacherSession[]
+  parentPortals ParentPortal[]
+}
+
+model TeacherSession {
+  id        String   @id
+  teacherId String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  teacher   Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  @@index([teacherId, expiresAt])
+}
+
+model ParentPortal {
+  id         String    @id
+  teacherId  String
+  studentId  String
+  tokenHash  String    @unique
+  showFees   Boolean   @default(false)
+  expiresAt  DateTime
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+  teacher    Teacher   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  @@index([teacherId, studentId])
+  @@index([studentId, revokedAt])
+}
+
 model Student {
   id        String     @id
+  teacherId String
   name      String
   subject   String
   feeType   String
   fee       Int
   active    Boolean
   color     String
+  teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
   schedules Schedule[]
   sessions  Session[]
   payments  Payment[]
+  parentPortals ParentPortal[]
+  @@index([teacherId])
 }
 
 model Schedule {
@@ -30,7 +70,6 @@ model Schedule {
   active    Boolean
   student   Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
   sessions  Session[]
-
   @@index([studentId])
 }
 
@@ -52,7 +91,6 @@ model Session {
   paymentAllocations PaymentAllocation[]
   notes      SessionNote[]
   attachments Attachment[]
-
   @@unique([studentId, date])
   @@index([studentId, date])
   @@index([scheduleId, date])
@@ -68,7 +106,6 @@ model SessionNote {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   session   Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
   @@index([sessionId, createdAt])
 }
 
@@ -80,7 +117,6 @@ model Attachment {
   storagePath  String
   uploadedAt  DateTime @default(now())
   session     Session  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
   @@index([sessionId, uploadedAt])
 }
 
@@ -108,11 +144,9 @@ model Payment {
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   session       Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   allocations   PaymentAllocation[]
-
   @@index([studentId, date])
   @@index([sessionId])
 }
-
 
 model PaymentAllocation {
   id        String  @id
@@ -121,7 +155,6 @@ model PaymentAllocation {
   amount    Int
   payment   Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   session   Session @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
   @@unique([paymentId, sessionId])
   @@index([sessionId])
   @@index([paymentId])
