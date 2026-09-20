@@ -128,7 +128,7 @@ export async function createPaymentWithAllocations(input: Payment, allocations: 
           const sessionDue = Math.max(0, student.fee - alreadyCovered);
           const allocationAmount = Math.min(remaining, sessionDue);
           if (allocationAmount > 0) {
-            generated.push({ id: crypto.randomUUID(), paymentId: input.id, sessionId: session.id, amount: allocationAmount, teacherId });
+            generated.push({ id: crypto.randomUUID(), paymentId: input.id, sessionId: session.id, amount: allocationAmount });
             remaining -= allocationAmount;
           }
         }
