@@ -29,7 +29,7 @@ export default function Home() {
             <CommandBar minimal />
 
             <p className="mt-4 text-center text-[11px] text-white/25">
-              Try: “Took Tanay’s class today” · “Aahan paid ₹2,000” · “Show unpaid classes”
+              Try: “Took a class today” · “Received ₹2,000” · “Show unpaid classes”
             </p>
           </div>
         </div>
