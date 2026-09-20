@@ -31,7 +31,7 @@ export default async function SettingsPage() {
             <h2 className="text-lg font-semibold">Teacher accounts</h2>
             <p className="mt-1 text-sm text-muted-foreground">Create additional teacher workspaces without sharing student data.</p>
             <div className="mt-5 space-y-3">
-              {teachers.map((item) => (
+              {teachers.map((item: { id: string; name: string; email: string | null }) => (
                 <div key={item.id} className="flex items-center justify-between rounded-2xl border border-border bg-background/50 px-4 py-3">
                   <div><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.email ?? "Email not configured"}</p></div>
                   {item.id === teacher.id && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs text-primary">You</span>}
@@ -58,7 +58,7 @@ export default async function SettingsPage() {
             <p className="mt-1 text-sm text-muted-foreground">Create a revocable, expiring read-only link for one student.</p>
             <PortalManager
               students={students}
-              portals={portals.map((p) => ({
+              portals={portals.map((p: { id: string; showFees: boolean; expiresAt: Date; revokedAt: Date | null; student: { name: string } }) => ({
                 id: p.id,
                 studentName: p.student.name,
                 showFees: p.showFees,
