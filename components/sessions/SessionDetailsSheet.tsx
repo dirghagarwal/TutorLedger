@@ -327,6 +327,7 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
       </SheetContent>
 
       <EditSessionDialog
+        key={record.session.id}
         attendance={record.attendance}
         onOpenChange={setEditOpen}
         onSaved={() => router.refresh()}
