@@ -1,25 +1,22 @@
-import { prisma } from "@/lib/db/prisma";
-import { getRequestTeacherId } from "@/lib/auth/session";
+import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import { DayOfWeek, type Schedule } from "@/types/schedule";
 
-function toSchedule(record: Awaited<ReturnType<typeof prisma.schedule.findMany>>[number]): Schedule {
+function toSchedule(record: Awaited<ReturnType<typeof tenantPrisma.schedule.findMany>>[number]): Schedule {
   return { ...record, dayOfWeek: record.dayOfWeek as DayOfWeek };
 }
 
 export async function findSchedules(): Promise<Schedule[]> {
-  const records = await prisma.schedule.findMany({ orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] });
+  const records = await tenantPrisma.schedule.findMany({ orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] });
   return records.map(toSchedule);
 }
 
 export async function findSchedulesByStudent(studentId: string): Promise<Schedule[]> {
-  const records = await prisma.schedule.findMany({ where: { studentId }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] });
+  const records = await tenantPrisma.schedule.findMany({ where: { studentId }, orderBy: [{ dayOfWeek: "asc" }, { startTime: "asc" }] });
   return records.map(toSchedule);
 }
 
 export async function createSchedule(data: Omit<Schedule, "id"> & { id?: string; active?: boolean }): Promise<Schedule> {
-  const teacherId = await getRequestTeacherId();
-  if (!teacherId) throw new Error("UNAUTHENTICATED");
-  const record = await prisma.schedule.create({
+    const record = await tenantPrisma.schedule.create({
     data: {
       id: data.id ?? crypto.randomUUID(),
       studentId: data.studentId,
@@ -35,10 +32,10 @@ export async function createSchedule(data: Omit<Schedule, "id"> & { id?: string;
 }
 
 export async function updateSchedule(id: string, data: Partial<Omit<Schedule, "id">>): Promise<Schedule> {
-  const record = await prisma.schedule.update({ where: { id }, data });
+  const record = await tenantPrisma.schedule.update({ where: { id }, data });
   return toSchedule(record);
 }
 
 export async function deleteSchedule(id: string): Promise<void> {
-  await prisma.schedule.delete({ where: { id } });
+  await tenantPrisma.schedule.delete({ where: { id } });
 }
