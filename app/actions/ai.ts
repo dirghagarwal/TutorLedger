@@ -776,7 +776,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
         scheduleId: "",
       };
 
-      logAiAuditTrail({
+      await logAiAuditTrail({
         action: "CONTEXT_SWITCH",
         studentId: student.id,
         userPrompt: trimmed,
