@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import type { PaymentAllocation } from "@/types/payment-allocation";
@@ -52,7 +51,7 @@ export async function createPaymentWithAllocations(input: Payment, allocations: 
   const teacherId = await getRequestTeacherId();
   if (!teacherId) throw new Error("UNAUTHENTICATED");
 
-  const record = await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+  const record = await tenantPrisma.$transaction(async (tx) => {
     if (input.sessionId) {
       const linkedSession = await tx.session.findUnique({
         where: { id: input.sessionId, teacherId },
