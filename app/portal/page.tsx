@@ -39,9 +39,10 @@ export default async function ParentPortalPage() {
     }),
   ]);
 
-  const attendanceStatus = new Map(
-    attendance.map((row: { sessionId: string; status: string }) => [row.sessionId, row.status]),
-  );
+  const attendanceStatus = new Map<string, string>();
+  for (const row of attendance as Array<{ sessionId: string; status: string }>) {
+    attendanceStatus.set(row.sessionId, row.status);
+  }
   type SessionNoteRow = {
     sessionId: string;
     topic: string;
