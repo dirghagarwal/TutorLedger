@@ -38,9 +38,9 @@ export default async function ParentPortalPage({
     }),
   ]);
 
-  const attendanceBySession = new Map(attendance.map((row) => [row.sessionId, row.status]));
+  const attendanceBySession = new Map<string, string>(attendance.map((row: { sessionId: string; status: string }) => [row.sessionId, row.status]));
   const notesBySession = new Map<string, typeof notes[number]>();
-  for (const note of notes) {
+  for (const note of notes as Array<{ sessionId: string; topic: string; classwork: string; homework: string; remarks: string; createdAt: Date }>) {
     if (!notesBySession.has(note.sessionId)) notesBySession.set(note.sessionId, note);
   }
 
@@ -80,7 +80,7 @@ export default async function ParentPortalPage({
             <p className="mt-1 text-xs text-white/45">Attendance, topics and homework shared by your tutor.</p>
           </div>
           <div className="divide-y divide-white/6">
-            {sessions.map((session) => {
+            {sessions.map((session: { id: string; date: string; startTime: string; endTime: string; status: string }) => {
               const note = notesBySession.get(session.id);
               return (
                 <article key={session.id} className="px-5 py-5">
