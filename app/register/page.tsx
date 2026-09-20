@@ -43,6 +43,9 @@ export default async function RegisterPage({
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="email">Email</label>
           <input id="email" name="email" type="email" required autoComplete="email" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
 
+          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="inviteCode">Registration invite code</label>
+          <input id="inviteCode" name="inviteCode" type="password" required autoComplete="off" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
+
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="password">Password</label>
           <input id="password" name="password" type="password" minLength={8} required autoComplete="new-password" className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
 
