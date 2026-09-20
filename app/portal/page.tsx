@@ -39,9 +39,19 @@ export default async function ParentPortalPage() {
     }),
   ]);
 
-  const attendanceStatus = new Map(attendance.map((row) => [row.sessionId, row.status]));
-  const notesBySession = new Map<string, typeof notes[number]>();
-  for (const note of notes) {
+  const attendanceStatus = new Map(
+    attendance.map((row: { sessionId: string; status: string }) => [row.sessionId, row.status]),
+  );
+  type SessionNoteRow = {
+    sessionId: string;
+    topic: string;
+    classwork: string;
+    homework: string;
+    remarks: string;
+    createdAt: Date;
+  };
+  const notesBySession = new Map<string, SessionNoteRow>();
+  for (const note of notes as SessionNoteRow[]) {
     if (!notesBySession.has(note.sessionId)) notesBySession.set(note.sessionId, note);
   }
 
@@ -52,16 +62,25 @@ export default async function ParentPortalPage() {
       select: { amount: true, status: true, date: true },
     });
     const collected = payments
-      .filter((payment) => payment.status === "PAID" || payment.status === "PARTIAL")
-      .reduce((sum, payment) => sum + payment.amount, 0);
+      .filter(
+        (payment: { amount: number; status: string; date: string }) =>
+          payment.status === "PAID" || payment.status === "PARTIAL",
+      )
+      .reduce(
+        (sum: number, payment: { amount: number; status: string; date: string }) =>
+          sum + payment.amount,
+        0,
+      );
 
     if (portal.student.feeType === "CLASSWISE") {
-      const attendedCount = attendance.filter((row) => row.status === "PRESENT").length;
+      const attendedCount = attendance.filter(
+        (row: { sessionId: string; status: string }) => row.status === "PRESENT",
+      ).length;
       feeSummary = calculateLedgerBalance(attendedCount * portal.student.fee, collected);
     } else {
       const historicalDates = [
-        ...sessions.map((item) => item.date),
-        ...payments.map((payment) => payment.date),
+        ...sessions.map((item: { id: string; date: string; startTime: string; endTime: string; status: string }) => item.date),
+        ...payments.map((payment: { amount: number; status: string; date: string }) => payment.date),
       ];
       const accrued = calculateMonthlyAccruedFee(
         portal.student.fee,
@@ -114,7 +133,7 @@ export default async function ParentPortalPage() {
             <p className="mt-1 text-xs text-white/45">Attendance, topics and homework shared by your tutor.</p>
           </div>
           <div className="divide-y divide-white/6">
-            {sessions.map((session) => {
+            {sessions.map((session: { id: string; date: string; startTime: string; endTime: string; status: string }) => {
               const note = notesBySession.get(session.id);
               return (
                 <article key={session.id} className="px-5 py-5">
