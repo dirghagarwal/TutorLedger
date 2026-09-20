@@ -18,6 +18,14 @@ function parseInput(input: unknown): StudentInput {
   return studentSchema.parse(input);
 }
 
+function getCurrentBillingMonth(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+}
+
 function failure(error: unknown): ActionResult {
   return { ok: false, error: error instanceof Error ? error.message : "Unable to save student." };
 }
@@ -32,7 +40,11 @@ function safeRevalidate(path: string) {
 
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
-    const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
+    const student = await createStudent({
+      id: crypto.randomUUID(),
+      ...parseInput(input),
+      billingStartMonth: getCurrentBillingMonth(),
+    });
     safeRevalidate("/students");
     safeRevalidate("/calendar");
     safeRevalidate("/");

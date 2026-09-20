@@ -23,11 +23,14 @@ export default async function SetupPage({
           <p className="mt-2 text-sm text-muted-foreground">Create the first private teacher account. Existing ledger data stays attached to this workspace.</p>
         </div>
         <form action={setupTeacher} className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
-          {error && <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">Please enter a valid name, email and password of at least 8 characters.</p>}
+          {error === "invite" && <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">A valid registration invite code is required.</p>}
+          {error === "invalid" && <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">Please enter a valid name, email and password of at least 8 characters.</p>}
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="name">Your name</label>
           <input id="name" name="name" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="email">Email</label>
           <input id="email" name="email" type="email" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
+          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="inviteCode">Registration invite code</label>
+          <input id="inviteCode" name="inviteCode" type="password" required autoComplete="off" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="password">Password</label>
           <input id="password" name="password" type="password" minLength={8} required autoComplete="new-password" className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <button className="mt-5 h-12 w-full rounded-xl bg-white text-black font-medium hover:opacity-90" type="submit">Create workspace</button>

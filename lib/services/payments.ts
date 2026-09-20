@@ -124,7 +124,8 @@ async function getLedgerSnapshot(
   const accruedFees = calculateMonthlyAccruedFee(
     student.fee,
     currentMonthKey,
-    historicalDates
+    historicalDates,
+    student.billingStartMonth,
   );
 
   return { balance: calculateLedgerBalance(accruedFees, collected) };

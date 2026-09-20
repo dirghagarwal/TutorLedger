@@ -50,6 +50,7 @@ model Student {
   subject   String
   feeType   String
   fee       Int
+  billingStartMonth String?
   active    Boolean
   color     String
   teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -94,7 +95,7 @@ model Session {
   paymentAllocations PaymentAllocation[]
   notes      SessionNote[]
   attachments Attachment[]
-  @@unique([studentId, date])
+  @@unique([studentId, date, startTime])
   @@index([studentId, date])
   @@index([scheduleId, date])
   @@index([teacherId])
