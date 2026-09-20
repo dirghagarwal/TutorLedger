@@ -49,7 +49,7 @@ export default function PortalManager({ students, portals }: { students: Student
         {portals.map((p) => (
           <div key={p.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-background/40 p-3">
             <div className="min-w-0"><p className="truncate text-sm font-medium">{p.studentName}</p><p className="text-xs text-muted-foreground">{p.revokedAt ? "Revoked" : `Expires ${new Date(p.expiresAt).toLocaleDateString("en-IN")}`} · {p.showFees ? "Fees visible" : "Fees hidden"}</p></div>
-            {!p.revokedAt && <button type="button" onClick={() => startTransition(async () => { await revokeParentPortals(p.studentName); window.location.reload(); })} disabled={pending} className="shrink-0 text-xs text-destructive hover:underline">Revoke</button>}
+            {!p.revokedAt && <button type="button" onClick={() => startTransition(async () => { await revokeParentPortal(p.id); window.location.reload(); })} disabled={pending} className="shrink-0 text-xs text-destructive hover:underline">Revoke</button>}
           </div>
         ))}
       </div>
