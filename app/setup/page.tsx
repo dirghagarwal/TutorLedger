@@ -9,6 +9,9 @@ export default async function SetupPage({
 }: { searchParams: Promise<{ error?: string }> }) {
   const teacher = await rawPrisma.teacher.findFirst({ orderBy: { createdAt: "asc" } });
   if (!teacher || teacher.passwordHash) redirect("/login");
+  if (process.env.NODE_ENV === "production" && !process.env.TUTORLEDGER_SETUP_KEY) {
+    redirect("/login?error=setup-disabled");
+  }
 
   const { error } = await searchParams;
 
@@ -20,7 +23,7 @@ export default async function SetupPage({
             <span className="text-lg font-semibold">TL</span>
           </div>
           <h1 className="text-3xl font-semibold tracking-tight">Set up TutorLedger</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Create the first private teacher account. Existing ledger data stays attached to this workspace.</p>
+          <p className="mt-2 text-sm text-muted-foreground">Claim the existing workspace using the private setup key. Existing ledger data stays attached to this workspace.</p>
         </div>
         <form action={setupTeacher} className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
           {error && <p className="mb-4 rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">Please enter a valid name, email and password of at least 8 characters.</p>}
@@ -28,6 +31,9 @@ export default async function SetupPage({
           <input id="name" name="name" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="email">Email</label>
           <input id="email" name="email" type="email" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
+          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="setupKey">One-time setup key</label>
+          <input id="setupKey" name="setupKey" type="password" required autoComplete="off" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
+
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="password">Password</label>
           <input id="password" name="password" type="password" minLength={8} required autoComplete="new-password" className="h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <button className="mt-5 h-12 w-full rounded-xl bg-white text-black font-medium hover:opacity-90" type="submit">Create workspace</button>
