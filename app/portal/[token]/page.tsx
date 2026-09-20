@@ -17,6 +17,8 @@ export default async function ParentPortalPage({
     include: { student: true, teacher: { select: { name: true } } },
   });
 
+  // The portal expiry is intentionally evaluated per request.
+  // eslint-disable-next-line react-hooks/purity
   if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) notFound();
 
   const [sessions, notes, attendance] = await Promise.all([
