@@ -82,7 +82,7 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
     setItems((current) => current.filter((item) => item.student.id !== student.id));
     setPendingFees((current) => current - (removed?.outstandingBalance ?? 0));
     startTransition(async () => {
-      const result = await deleteStudent(student.id);
+      const result = await deleteStudent(student.id, typedDelete);
       if (!result.ok && removed) {
         setItems((current) => [...current, removed]);
         setPendingFees((current) => current + removed.outstandingBalance);
