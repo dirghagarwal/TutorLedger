@@ -91,7 +91,7 @@ export async function processAiCommand(
   const todayKolkataDate = getTodayDateKey();
 
   let semanticOutput: AiSemanticOutput;
-  const modelName = "gemini-3.8-flash";
+  const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -572,7 +572,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       const student = studentRes.student;
       const token = generateConfirmationToken({ studentId: student.id, action: "CONFIRM_DELETE_STUDENT" });
 
-      logAiAuditTrail({
+      await logAiAuditTrail({
         action: "DELETE_STUDENT_REQUEST",
         studentId: student.id,
         userPrompt: trimmed,
