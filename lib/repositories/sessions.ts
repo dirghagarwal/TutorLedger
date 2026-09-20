@@ -1,4 +1,5 @@
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
+import { getTodayDateKey } from "@/lib/utils/date";
 import { SessionStatus, type Session } from "@/types/session";
 
 export interface SessionUpdateData {
@@ -91,7 +92,7 @@ export async function updateSessionStatus(
   if (!existing && fallbackSession?.studentId) {
     const canonical = await ensureSessionExists({
       sessionId: id, studentId: fallbackSession.studentId, scheduleId: fallbackSession.scheduleId,
-      date: fallbackSession.date ?? new Date().toISOString().slice(0, 10),
+      date: fallbackSession.date ?? getTodayDateKey(),
       startTime: fallbackSession.startTime, endTime: fallbackSession.endTime,
     });
     return upsertSession({
