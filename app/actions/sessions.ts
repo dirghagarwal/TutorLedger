@@ -1,7 +1,5 @@
 "use server";
 
-import { Prisma } from "@prisma/client";
-
 import { revalidatePath } from "next/cache";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
@@ -297,45 +295,43 @@ export async function updateSessionAction(
       };
     }
 
-    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
-      await tx.session.update({
-        where: { id: session.id },
+    await tenantPrisma.session.update({
+      where: { id: session.id },
+      data: {
+        date: values.date,
+        startTime: values.startTime,
+        endTime: values.endTime,
+        status: values.status,
+      },
+    });
+
+    const existingAttendance = await tenantPrisma.attendance.findUnique({
+      where: { sessionId: session.id },
+    });
+
+    if (existingAttendance) {
+      await tenantPrisma.attendance.update({
+        where: { sessionId: session.id },
         data: {
           date: values.date,
           startTime: values.startTime,
           endTime: values.endTime,
-          status: values.status,
+          ...(values.attendanceStatus ? { status: values.attendanceStatus } : {}),
         },
       });
-
-      const existingAttendance = await tx.attendance.findUnique({
-        where: { sessionId: session.id },
+    } else if (values.attendanceStatus) {
+      await tenantPrisma.attendance.create({
+        data: {
+          id: "attendance-" + session.id,
+          sessionId: session.id,
+          date: values.date,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          status: values.attendanceStatus,
+          notes: "Recorded via manual session edit",
+        },
       });
-
-      if (existingAttendance) {
-        await tx.attendance.update({
-          where: { sessionId: session.id },
-          data: {
-            date: values.date,
-            startTime: values.startTime,
-            endTime: values.endTime,
-            ...(values.attendanceStatus ? { status: values.attendanceStatus } : {}),
-          },
-        });
-      } else if (values.attendanceStatus) {
-        await tx.attendance.create({
-          data: {
-            id: "attendance-" + session.id,
-            sessionId: session.id,
-            date: values.date,
-            startTime: values.startTime,
-            endTime: values.endTime,
-            status: values.attendanceStatus,
-            notes: "Recorded via manual session edit",
-          },
-        });
-      }
-    });
+    }
 
     revalidateSessionPaths(session.id, session.studentId);
     return { ok: true, sessionId: session.id };
