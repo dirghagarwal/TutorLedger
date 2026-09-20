@@ -27,6 +27,7 @@ export function countInclusiveCalendarMonths(startMonth: string, endMonth: strin
 export function getEarliestBillingMonth(
   currentMonth: string,
   historicalDates: readonly string[],
+  explicitStartMonth?: string | null,
 ): string {
   const current = parseMonthKey(currentMonth);
   if (!current) return currentMonth;
