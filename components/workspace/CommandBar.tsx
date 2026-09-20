@@ -125,7 +125,7 @@ export default function CommandBar({ minimal = false }: { minimal?: boolean }) {
 
   async function handleConfirmDeleteStudent(studentId: string) {
     startTransition(async () => {
-      const res = await deleteStudent(studentId);
+      const res = await deleteStudent(studentId, `DELETE ${strongDeleteStudent?.name?.toUpperCase() ?? ""}`);
       if (!res.ok) {
         toast({ title: "Student deletion failed", description: res.error, variant: "error" });
         return;
