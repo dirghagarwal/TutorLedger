@@ -58,10 +58,10 @@ export async function editStudent(id: string, input: unknown): Promise<ActionRes
 export async function archiveStudent(id: string): Promise<ActionResult> {
   try {
     const student = await archiveStudentRecord(id);
-    revalidatePath("/students");
-    revalidatePath(`/students/${id}`);
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate(`/students/${id}`);
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true, student };
   } catch (error) {
     return failure(error);
@@ -71,9 +71,9 @@ export async function archiveStudent(id: string): Promise<ActionResult> {
 export async function deleteStudent(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     await deleteStudentRecord(id);
-    revalidatePath("/students");
-    revalidatePath("/calendar");
-    revalidatePath("/");
+    safeRevalidate("/students");
+    safeRevalidate("/calendar");
+    safeRevalidate("/");
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Unable to delete student." };

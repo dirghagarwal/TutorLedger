@@ -34,3 +34,11 @@ test("collected exactly equals accrued means no due and no credit", () => {
     credit: 0,
   });
 });
+
+
+test("monthly billing keeps future months due after partial monthly collections", () => {
+  assert.deepEqual(calculateLedgerBalance(6000, 4000), {
+    outstanding: 2000,
+    credit: 0,
+  });
+});
