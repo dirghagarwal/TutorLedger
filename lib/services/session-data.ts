@@ -1,6 +1,6 @@
 import "server-only";
 import { findSchedules } from "@/lib/repositories/schedules";
-import { findSessionById as findStoredSessionById, findSessions as findStoredSessions } from "@/lib/repositories/sessions";
+import { findSessions as findStoredSessions } from "@/lib/repositories/sessions";
 import type { Schedule } from "@/types/schedule";
 import type { Session } from "@/types/session";
 import { generateSessionsForMonth, sortSessions } from "@/lib/services/sessions";
