@@ -95,7 +95,7 @@ model Session {
   paymentAllocations PaymentAllocation[]
   notes      SessionNote[]
   attachments Attachment[]
-  @@unique([studentId, date])
+  @@unique([studentId, date, startTime])
   @@index([studentId, date])
   @@index([scheduleId, date])
   @@index([teacherId])
