@@ -63,7 +63,8 @@ export async function setupTeacher(formData: FormData) {
     !name ||
     !z.string().email().safeParse(email).success ||
     password.length < 8 ||
-    (expectedSetupKey ? !matchesSetupKey(setupKey, expectedSetupKey) : process.env.NODE_ENV === "production")
+    (!validSetupCredential && process.env.NODE_ENV === "production") ||
+    (!validSetupCredential && !expectedSetupKey && !expectedInviteCode)
   ) {
     redirect("/setup?error=invalid");
   }
