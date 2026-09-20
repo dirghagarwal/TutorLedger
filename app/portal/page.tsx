@@ -18,7 +18,7 @@ export default async function ParentPortalPage() {
     include: { student: true, teacher: { select: { name: true } } },
   });
 
-  if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) notFound();
+  if (!portal || portal.revokedAt) notFound();
 
   const [sessions, notes, attendance] = await Promise.all([
     rawPrisma.session.findMany({
