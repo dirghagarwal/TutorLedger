@@ -78,13 +78,6 @@ export async function processAiCommand(
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return {
-      ok: false,
-      message: "GEMINI_API_KEY is not configured in server environment.",
-      activeContext,
-    };
-  }
 
   const enrolledStudents = await findStudents();
   const enrolledNamesList = enrolledStudents.map((s) => s.name);
@@ -94,6 +87,7 @@ export async function processAiCommand(
   const modelName = "gemini-3.8-flash";
 
   try {
+    if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
       model: modelName,
@@ -1117,10 +1111,13 @@ function parsePromptFallback(
   }
 
   if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees") || lower.includes("2k") || lower.includes("1k")) {
-    const amountMatch = prompt.match(/(\d+)\s*k?/i);
-    let amount = amountMatch ? Number(amountMatch[1]) : 1000;
-    if (prompt.toLowerCase().includes("2k")) amount = 2000;
-    if (prompt.toLowerCase().includes("1k")) amount = 1000;
+    const amountMatch = prompt.match(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(k|thousand)?\b/i);
+    if (!amountMatch) {
+      return { action: "QUERY_STATS", queryTopic: "PENDING_FEES" };
+    }
+
+    let amount = Number(amountMatch[1]);
+    if (amountMatch[2]?.toLowerCase() === "k" || amountMatch[2]?.toLowerCase() === "thousand") amount *= 1000;
 
     return {
       action: "RECORD_PAYMENT",
