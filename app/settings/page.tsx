@@ -7,9 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const teacher = await requireTeacher();
-  const [students, teachers, portals] = await Promise.all([
+  const [students, portals] = await Promise.all([
     rawPrisma.student.findMany({ where: { teacherId: teacher.id, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
-    rawPrisma.teacher.findMany({ orderBy: { createdAt: "asc" }, select: { id: true, name: true, email: true } }),
     rawPrisma.parentPortal.findMany({
       where: { teacherId: teacher.id },
       orderBy: { createdAt: "desc" },
@@ -28,29 +27,12 @@ export default async function SettingsPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-3xl border border-border bg-surface p-6 shadow-card">
-            <h2 className="text-lg font-semibold">Teacher accounts</h2>
-            <p className="mt-1 text-sm text-muted-foreground">Create additional teacher workspaces without sharing student data.</p>
-            <div className="mt-5 space-y-3">
-              {teachers.map((item: { id: string; name: string; email: string | null }) => (
-                <div key={item.id} className="flex items-center justify-between rounded-2xl border border-border bg-background/50 px-4 py-3">
-                  <div><p className="font-medium">{item.name}</p><p className="text-xs text-muted-foreground">{item.email ?? "Email not configured"}</p></div>
-                  {item.id === teacher.id && <span className="rounded-full bg-primary/10 px-2.5 py-1 text-xs text-primary">You</span>}
-                </div>
-              ))}
+            <h2 className="text-lg font-semibold">Your account</h2>
+            <p className="mt-1 text-sm text-muted-foreground">This workspace is private to your signed-in teacher account.</p>
+            <div className="mt-5 rounded-2xl border border-border bg-background/50 px-4 py-4">
+              <p className="font-medium">{teacher.name}</p>
+              <p className="text-xs text-muted-foreground">{teacher.email ?? "Email not configured"}</p>
             </div>
-            <details className="mt-5 rounded-2xl border border-border p-4">
-              <summary className="cursor-pointer text-sm font-medium">Add another teacher</summary>
-              <form action={async (formData) => {
-                "use server";
-                const { createTeacherAccount } = await import("@/app/actions/auth");
-                await createTeacherAccount(formData);
-              }} className="mt-4 grid gap-3">
-                <input name="name" required minLength={2} placeholder="Teacher name" className="h-11 rounded-xl border border-input bg-background px-3 text-sm" />
-                <input name="email" required type="email" placeholder="Email" className="h-11 rounded-xl border border-input bg-background px-3 text-sm" />
-                <input name="password" required minLength={8} type="password" placeholder="Password" className="h-11 rounded-xl border border-input bg-background px-3 text-sm" />
-                <button className="h-11 rounded-xl bg-primary px-4 text-sm font-medium text-primary-foreground">Create teacher</button>
-              </form>
-            </details>
           </section>
 
           <section className="rounded-3xl border border-border bg-surface p-6 shadow-card">
