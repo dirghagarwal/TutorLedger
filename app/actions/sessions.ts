@@ -1,5 +1,7 @@
 "use server";
 
+import { Prisma } from "@prisma/client";
+
 import { revalidatePath } from "next/cache";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
@@ -295,7 +297,7 @@ export async function updateSessionAction(
       };
     }
 
-    await tenantPrisma.$transaction(async (tx) => {
+    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.session.update({
         where: { id: session.id },
         data: {
