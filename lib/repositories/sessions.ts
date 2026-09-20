@@ -27,55 +27,28 @@ export async function findSessionById(id: string): Promise<Session | null> {
 }
 
 export interface SessionUpsertInput {
-  id: string;
-  studentId: string;
-  scheduleId: string;
-  date: string;
-  startTime: string;
-  endTime: string;
-  status: SessionStatus;
-  startedAt?: string | null;
-  endedAt?: string | null;
-  durationMinutes?: number | null;
+  id: string; studentId: string; scheduleId: string; date: string; startTime: string; endTime: string;
+  status: SessionStatus; startedAt?: string | null; endedAt?: string | null; durationMinutes?: number | null;
 }
 
 export async function upsertSession(input: SessionUpsertInput): Promise<Session> {
-    const record = await tenantPrisma.session.upsert({
+  const record = await tenantPrisma.session.upsert({
     where: { id: input.id },
     create: {
-      id: input.id,
-      studentId: input.studentId,
-      scheduleId: input.scheduleId,
-      date: input.date,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      status: input.status,
-      startedAt: input.startedAt ?? null,
-      endedAt: input.endedAt ?? null,
-      durationMinutes: input.durationMinutes ?? null,
-      teacherId,
-    },
-    update: {
-      status: input.status,
-      startedAt: input.startedAt,
-      endedAt: input.endedAt,
-      durationMinutes: input.durationMinutes,
-    },
+      id: input.id, studentId: input.studentId, scheduleId: input.scheduleId, date: input.date,
+      startTime: input.startTime, endTime: input.endTime, status: input.status,
+      startedAt: input.startedAt ?? null, endedAt: input.endedAt ?? null, durationMinutes: input.durationMinutes ?? null,
+    } as never,
+    update: { status: input.status, startedAt: input.startedAt, endedAt: input.endedAt, durationMinutes: input.durationMinutes },
   });
   return toSession(record);
 }
 
 export interface EnsureSessionInput {
-  sessionId?: string;
-  studentId: string;
-  scheduleId?: string;
-  date: string;
-  startTime?: string;
-  endTime?: string;
+  sessionId?: string; studentId: string; scheduleId?: string; date: string; startTime?: string; endTime?: string;
 }
 
 export async function ensureSessionExists(input: EnsureSessionInput): Promise<Session> {
-  
   if (input.sessionId) {
     const existingById = await findSessionById(input.sessionId);
     if (existingById) return existingById;
@@ -100,15 +73,9 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   const record = await tenantPrisma.session.upsert({
     where: { studentId_date: { studentId: input.studentId, date: input.date } },
     create: {
-      id: canonicalId,
-      studentId: input.studentId,
-      scheduleId,
-      date: input.date,
-      startTime,
-      endTime,
-      status: SessionStatus.PLANNED,
-      teacherId,
-    },
+      id: canonicalId, studentId: input.studentId, scheduleId, date: input.date,
+      startTime, endTime, status: SessionStatus.PLANNED,
+    } as never,
     update: {},
   });
   return toSession(record);
@@ -123,25 +90,15 @@ export async function updateSessionStatus(
   const existing = await tenantPrisma.session.findUnique({ where: { id } });
   if (!existing && fallbackSession?.studentId) {
     const canonical = await ensureSessionExists({
-      sessionId: id,
-      studentId: fallbackSession.studentId,
-      scheduleId: fallbackSession.scheduleId,
+      sessionId: id, studentId: fallbackSession.studentId, scheduleId: fallbackSession.scheduleId,
       date: fallbackSession.date ?? new Date().toISOString().slice(0, 10),
-      startTime: fallbackSession.startTime,
-      endTime: fallbackSession.endTime,
+      startTime: fallbackSession.startTime, endTime: fallbackSession.endTime,
     });
     return upsertSession({
-      id: canonical.id,
-      studentId: canonical.studentId,
-      scheduleId: canonical.scheduleId,
-      date: canonical.date,
-      startTime: canonical.startTime,
-      endTime: canonical.endTime,
-      status,
-      ...data,
+      id: canonical.id, studentId: canonical.studentId, scheduleId: canonical.scheduleId, date: canonical.date,
+      startTime: canonical.startTime, endTime: canonical.endTime, status, ...data,
     });
   }
-
   const record = await tenantPrisma.session.update({ where: { id }, data: { status, ...data } });
   return toSession(record);
 }
