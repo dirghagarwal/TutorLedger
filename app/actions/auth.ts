@@ -48,7 +48,6 @@ export async function setupTeacher(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
   const setupKey = String(formData.get("setupKey") ?? "");
-  const inviteCode = String(formData.get("inviteCode") ?? "");
   const expectedSetupKey = process.env.TUTORLEDGER_SETUP_KEY;
   const expectedInviteCode = process.env.REGISTRATION_INVITE_CODE;
   const validSetupCredential =
