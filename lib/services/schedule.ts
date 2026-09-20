@@ -42,12 +42,6 @@ function formatDate(date: Date): string {
   ].join("-");
 }
 
-function sortSchedules(first: Schedule, second: Schedule): number {
-  const dayDifference =
-    dayOrder.indexOf(first.dayOfWeek) - dayOrder.indexOf(second.dayOfWeek);
-  return dayDifference || toMinutes(first.startTime) - toMinutes(second.startTime);
-}
-
 export function getTodaysClasses(
   allSchedules: readonly Schedule[],
   date = new Date()
