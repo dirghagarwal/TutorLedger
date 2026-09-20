@@ -1,5 +1,5 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import { Prisma } from "@prisma/client";
+import type { Prisma } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
 import { rawPrisma } from "@/lib/db/raw";
 
