@@ -9,7 +9,11 @@ export default async function SetupPage({
 }: { searchParams: Promise<{ error?: string }> }) {
   const teacher = await rawPrisma.teacher.findFirst({ orderBy: { createdAt: "asc" } });
   if (!teacher || teacher.passwordHash) redirect("/login");
-  if (process.env.NODE_ENV === "production" && !process.env.TUTORLEDGER_SETUP_KEY) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    !process.env.TUTORLEDGER_SETUP_KEY &&
+    !process.env.REGISTRATION_INVITE_CODE
+  ) {
     redirect("/login?error=setup-disabled");
   }
 
