@@ -2,6 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAiAuditTrail } from "@/lib/services/ai-safety";
+import { findStudentById } from "@/lib/repositories/students";
+
 import {
   archiveStudent as archiveStudentRecord,
   createStudent,
@@ -68,9 +71,33 @@ export async function archiveStudent(id: string): Promise<ActionResult> {
   }
 }
 
-export async function deleteStudent(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function deleteStudent(
+  id: string,
+  confirmationText: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const student = await findStudentById(id);
+    if (!student) return { ok: false, error: "Student record not found." };
+
+    const expected = `DELETE ${student.name.toUpperCase()}`;
+    if (confirmationText.trim().toUpperCase() !== expected) {
+      return { ok: false, error: "Strong deletion confirmation did not match the student name." };
+    }
+
     await deleteStudentRecord(id);
+
+    try {
+      await logAiAuditTrail({
+        action: "DELETE_STUDENT",
+        entityType: "Student",
+        entityId: id,
+        userPrompt: confirmationText,
+        result: "SUCCESS: Student permanently deleted after server-side confirmation.",
+      });
+    } catch {
+      // Never turn a committed deletion into a retryable client failure because auditing failed.
+    }
+
     safeRevalidate("/students");
     safeRevalidate("/calendar");
     safeRevalidate("/");
