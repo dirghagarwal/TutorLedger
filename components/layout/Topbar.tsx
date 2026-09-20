@@ -2,7 +2,6 @@
 
 import { Bell, LogOut, Menu, Search } from "lucide-react";
 import { logoutTeacher } from "@/app/actions/auth";
-
 import MobileSidebar from "@/components/layout/MobileSidebar";
 import { useSidebar } from "@/components/layout/SidebarContext";
 import { Button } from "@/components/ui/button";
@@ -35,10 +34,11 @@ export default function Topbar() {
       <div className="flex shrink-0 items-center gap-1 sm:gap-3">
         <Button aria-label="Search" className="text-muted-foreground" size="icon" variant="ghost"><Search /></Button>
         <Button aria-label="Notifications" className="text-muted-foreground" size="icon" variant="ghost"><Bell /></Button>
-
-        <div className="flex size-10 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground" aria-label="Account: Dirgh">
-          D
-        </div>
+        <form action={logoutTeacher}>
+          <button type="submit" aria-label="Sign out" title="Sign out" className="flex size-10 items-center justify-center rounded-full bg-white/[0.06] font-semibold text-white/80 ring-1 ring-white/10 transition hover:bg-white/[0.1]">
+            <LogOut className="size-4" />
+          </button>
+        </form>
       </div>
     </header>
   );
