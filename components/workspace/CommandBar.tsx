@@ -181,15 +181,15 @@ export default function CommandBar({ minimal = false }: { minimal?: boolean }) {
 
   return (
     <div className={`w-full ${minimal ? "mx-auto max-w-4xl" : "mt-6 mb-8 space-y-4"}`}>
-      <form onSubmit={handleSubmit} className={`relative flex items-center ${minimal ? "rounded-[28px] p-[1px] bg-gradient-to-r from-blue-500/20 via-violet-500/25 to-blue-500/10 shadow-[0_0_70px_rgba(70,90,255,0.07)]" : ""}`}>
+      <form onSubmit={handleSubmit} className={`relative flex items-center ${minimal ? "rounded-[28px] p-[1px] bg-gradient-to-r from-blue-400/10 via-violet-400/14 to-blue-400/8 shadow-[0_0_70px_rgba(70,90,255,0.035)]" : ""}`}>
         <div className="absolute left-4 text-primary pointer-events-none">
-          <Sparkles className="size-5 animate-pulse" />
+          <Sparkles className="size-5 opacity-55" />
         </div>
 
         <input
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
-          placeholder="Ask TutorLedger anything… (e.g. 'Took Aahan class today', 'Who owes money?', 'Aahan paid 2k')"
+          placeholder="Tell TutorLedger what happened…"
           className={`w-full ${minimal ? "rounded-[27px] border-white/8 bg-[#0a0b10] py-5 pl-14 pr-16 text-base shadow-none" : "rounded-2xl border border-input bg-card py-4 pl-12 pr-14 text-sm shadow-card"} text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/40 focus:ring-2 focus:ring-ring/20`}
         />
 
