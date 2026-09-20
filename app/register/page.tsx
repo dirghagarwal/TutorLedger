@@ -31,6 +31,11 @@ export default async function RegisterPage({
               An account with that email already exists.
             </p>
           )}
+          {error === "invite" && (
+            <p className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              A valid registration invite code is required.
+            </p>
+          )}
 
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="name">Your name</label>
           <input id="name" name="name" required minLength={2} autoComplete="name" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
