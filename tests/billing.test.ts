@@ -21,6 +21,20 @@ test("monthly billing with no history starts in the current month", () => {
   assert.equal(calculateMonthlyAccruedFee(2000, "2026-09", []), 2000);
 });
 
+test("monthly billing uses explicit enrollment month even when there is no activity history", () => {
+  assert.equal(
+    calculateMonthlyAccruedFee(2000, "2026-11", [], "2026-09"),
+    6000,
+  );
+});
+
+test("an explicit future billing month does not accrue fees before enrollment", () => {
+  assert.equal(
+    calculateMonthlyAccruedFee(2000, "2026-09", ["2026-07-10"], "2026-10"),
+    6000,
+  );
+});
+
 test("classwise surplus becomes visible credit instead of negative due", () => {
   assert.deepEqual(calculateLedgerBalance(300, 1200), {
     outstanding: 0,
