@@ -8,7 +8,7 @@ export const studentSchema = z.object({
   feeType: z.enum([FeeType.MONTHLY, FeeType.CLASSWISE]),
   fee: z.number().int().positive("Fee must be greater than zero."),
   active: z.boolean(),
-  color: z.string().regex(/^#[0-9a-fA-F]{6}$/, "Choose a valid color."),
+  color: z.string().regex(/^(?:#[0-9a-fA-F]{6}|hsl\([^)]*\))$/, "Choose a valid color."),
 });
 
 export type StudentFormValues = z.infer<typeof studentSchema>;
