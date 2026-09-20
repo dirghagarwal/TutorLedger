@@ -15,6 +15,7 @@ import {
 
   groupSessionsByDate,
 } from "@/lib/services/sessions";
+import { getSessionsForMonth } from "@/lib/services/session-data";
 import type { Attachment } from "@/types/attachment";
 import type { Attendance } from "@/types/attendance";
 import type { Payment } from "@/types/payment";
