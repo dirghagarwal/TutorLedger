@@ -69,9 +69,9 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
     }
   }
 
-  const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}`;
+  const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}-${startTime.replace(/:/g, "")}`;
   const record = await tenantPrisma.session.upsert({
-    where: { studentId_date: { studentId: input.studentId, date: input.date } },
+    where: { studentId_date_startTime: { studentId: input.studentId, date: input.date, startTime } },
     create: {
       id: canonicalId, studentId: input.studentId, scheduleId, date: input.date,
       startTime, endTime, status: SessionStatus.PLANNED,
