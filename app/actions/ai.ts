@@ -91,7 +91,7 @@ export async function processAiCommand(
   const todayKolkataDate = getTodayDateKey();
 
   let semanticOutput: AiSemanticOutput;
-  let modelName = "gemini-1.5-flash-latest";
+  const modelName = "gemini-3.8-flash";
 
   try {
     const genAI = new GoogleGenerativeAI(apiKey);
@@ -157,7 +157,7 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
     semanticOutput = aiSemanticOutputSchema.parse(rawJson);
   } catch {
     semanticOutput = parsePromptFallback(trimmed, enrolledNamesList, history);
-    modelName = "gemini-1.5-flash-latest (nlp-fallback)";
+    // Deterministic fallback keeps core actions usable if Gemini is temporarily unavailable.
   }
 
   // Handle Action Intents using Context Priority Architecture
