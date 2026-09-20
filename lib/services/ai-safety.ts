@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getRequestTeacherId } from "@/lib/auth/session";
+import { rawPrisma } from "@/lib/db/raw";
 
 /**
  * Central AI Safety Policy & Audit Logging for TutorLedger V2
@@ -7,15 +9,19 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export interface AuditEntry {
   timestamp: string;
+  teacherId: string;
   action: string;
+  entityType?: string;
+  entityId?: string;
   studentId?: string;
   sessionId?: string;
   resolvedDate?: string;
   userPrompt: string;
   result: string;
+  metadata?: Record<string, unknown>;
 }
 
-const auditLogs: AuditEntry[] = [];
+const auditLogs: AuditEntry[] = []; // retained only as a compatibility cache; DB is authoritative.
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 function confirmationSecret(): string {
@@ -76,15 +82,40 @@ export function verifyConfirmationToken(
   }
 }
 
-export function logAiAuditTrail(entry: Omit<AuditEntry, "timestamp">): void {
+export async function logAiAuditTrail(
+  entry: Omit<AuditEntry, "timestamp" | "teacherId">
+): Promise<void> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+
   const record: AuditEntry = {
     timestamp: new Date().toISOString(),
+    teacherId,
     ...entry,
+    userPrompt: entry.userPrompt.slice(0, 4000),
+    result: entry.result.slice(0, 2000),
   };
+
+  await rawPrisma.auditLog.create({
+    data: {
+      id: crypto.randomUUID(),
+      teacherId,
+      action: record.action,
+      entityType: record.entityType,
+      entityId: record.entityId,
+      studentId: record.studentId,
+      sessionId: record.sessionId,
+      resolvedDate: record.resolvedDate,
+      userPrompt: record.userPrompt,
+      result: record.result,
+      metadata: record.metadata,
+      createdAt: new Date(record.timestamp),
+    },
+  });
+
+  // Keep an in-process snapshot for legacy readers, but never rely on it for persistence.
   auditLogs.push(record);
-  console.log(
-    `[AI AUDIT SAFETY LOG] ${record.timestamp} | Action: ${record.action} | Student: ${record.studentId ?? "N/A"} | Session: ${record.sessionId ?? "N/A"} | Date: ${record.resolvedDate ?? "N/A"} | Result: ${record.result}`
-  );
+  if (auditLogs.length > 100) auditLogs.shift();
 }
 
 export function getAuditLogs(): readonly AuditEntry[] {
