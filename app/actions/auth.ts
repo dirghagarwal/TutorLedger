@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { rawPrisma } from "@/lib/db/raw";
 import {
@@ -9,6 +10,13 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/lib/auth/session";
+
+
+function matchesSetupKey(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 const credentialsSchema = z.object({
   email: z.string().trim().email(),
@@ -39,8 +47,19 @@ export async function setupTeacher(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const setupKey = String(formData.get("setupKey") ?? "");
+  const expectedSetupKey = process.env.TUTORLEDGER_SETUP_KEY;
 
-  if (!name || !z.string().email().safeParse(email).success || password.length < 8) {
+  if (process.env.NODE_ENV === "production" && !expectedSetupKey) {
+    redirect("/login?error=setup-disabled");
+  }
+
+  if (
+    !name ||
+    !z.string().email().safeParse(email).success ||
+    password.length < 8 ||
+    (expectedSetupKey ? !matchesSetupKey(setupKey, expectedSetupKey) : process.env.NODE_ENV === "production")
+  ) {
     redirect("/setup?error=invalid");
   }
 
