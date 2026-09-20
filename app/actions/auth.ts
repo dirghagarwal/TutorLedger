@@ -1,7 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { rawPrisma } from "@/lib/db/raw";
 import {
@@ -40,6 +40,42 @@ export async function loginTeacher(formData: FormData) {
   }
 
   await createTeacherSession(teacher.id);
+  redirect("/");
+}
+
+export async function claimLegacyTeacher(formData: FormData) {
+  const token = String(formData.get("token") ?? "");
+  const password = String(formData.get("password") ?? "");
+  if (token.length < 32 || password.length < 8 || password.length > 128) {
+    redirect("/claim?error=invalid");
+  }
+
+  const tokenHash = createHash("sha256").update(token).digest("hex");
+  const claimSession = await rawPrisma.teacherSession.findUnique({
+    where: { tokenHash },
+    include: { teacher: true },
+  });
+
+  if (
+    !claimSession ||
+    claimSession.expiresAt.getTime() <= Date.now() ||
+    claimSession.teacher.id !== "legacy-teacher" ||
+    claimSession.teacher.passwordHash
+  ) {
+    redirect("/claim?error=invalid");
+  }
+
+  const updated = await rawPrisma.teacher.update({
+    where: { id: "legacy-teacher" },
+    data: {
+      name: "Dirgh Agarwal",
+      email: "dirgh.agarwal@gmail.com",
+      passwordHash: hashPassword(password),
+    },
+  });
+
+  await rawPrisma.teacherSession.delete({ where: { id: claimSession.id } });
+  await createTeacherSession(updated.id);
   redirect("/");
 }
 
