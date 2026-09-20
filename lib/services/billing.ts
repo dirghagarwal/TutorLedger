@@ -32,6 +32,9 @@ export function getEarliestBillingMonth(
   const current = parseMonthKey(currentMonth);
   if (!current) return currentMonth;
 
+  const explicit = explicitStartMonth && parseMonthKey(explicitStartMonth);
+  if (explicit && explicit <= currentMonth) return explicitStartMonth;
+
   let earliest = currentMonth;
   for (const date of historicalDates) {
     const candidate = getMonthKey(date);
