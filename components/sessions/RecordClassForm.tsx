@@ -1,7 +1,7 @@
 "use client";
 
 import { CalendarPlus, Check, Loader2, Save } from "lucide-react";
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { addPastClassAction } from "@/app/actions/sessions";
@@ -27,10 +27,14 @@ export default function RecordClassForm({
   const [isPending, startTransition] = useTransition();
 
   const activeStudents = useMemo(() => students.filter((student) => student.active), [students]);
-  const [studentId, setStudentId] = useState(activeStudents[0]?.id ?? "");
+  const initialStudentId = activeStudents[0]?.id ?? "";
+  const initialSchedule = schedules.find(
+    (schedule) => schedule.studentId === initialStudentId && schedule.active
+  );
+  const [studentId, setStudentId] = useState(initialStudentId);
   const [date, setDate] = useState(defaultDate);
-  const [startTime, setStartTime] = useState("16:30");
-  const [endTime, setEndTime] = useState("17:30");
+  const [startTime, setStartTime] = useState(initialSchedule?.startTime ?? "16:30");
+  const [endTime, setEndTime] = useState(initialSchedule?.endTime ?? "17:30");
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.PRESENT);
   const [topic, setTopic] = useState("");
   const [classwork, setClasswork] = useState("");
@@ -42,13 +46,6 @@ export default function RecordClassForm({
     () => schedules.filter((schedule) => schedule.studentId === studentId && schedule.active),
     [schedules, studentId]
   );
-
-  useEffect(() => {
-    const firstSchedule = studentSchedules[0];
-    if (!firstSchedule) return;
-    setStartTime(firstSchedule.startTime);
-    setEndTime(firstSchedule.endTime);
-  }, [studentSchedules]);
 
   const selectedSchedule = useMemo(
     () => studentSchedules.find(
@@ -123,7 +120,15 @@ export default function RecordClassForm({
           <Field label="Student">
             <select
               value={studentId}
-              onChange={(event) => setStudentId(event.target.value)}
+              onChange={(event) => {
+                const nextStudentId = event.target.value;
+                const nextSchedule = schedules.find(
+                  (schedule) => schedule.studentId === nextStudentId && schedule.active
+                );
+                setStudentId(nextStudentId);
+                setStartTime(nextSchedule?.startTime ?? "16:30");
+                setEndTime(nextSchedule?.endTime ?? "17:30");
+              }}
               className="h-11 w-full rounded-xl border border-input bg-card px-3 text-sm text-foreground outline-none focus:border-primary"
               required
             >
