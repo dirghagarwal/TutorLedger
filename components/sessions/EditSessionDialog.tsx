@@ -1,7 +1,7 @@
 "use client";
 
 import { Pencil, Save, X } from "lucide-react";
-import { useEffect, useState, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { updateSessionAction } from "@/app/actions/sessions";
 import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { SessionStatus, type Session } from "@/types/session";
@@ -33,15 +33,6 @@ export default function EditSessionDialog({
   const [attendanceStatus, setAttendanceStatus] = useState<AttendanceStatus | "">(
     attendance?.status ?? ""
   );
-
-  useEffect(() => {
-    if (!open) return;
-    setDate(session.date);
-    setStartTime(session.startTime);
-    setEndTime(session.endTime);
-    setStatus(session.status);
-    setAttendanceStatus(attendance?.status ?? "");
-  }, [attendance?.status, open, session.date, session.endTime, session.startTime, session.status]);
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
