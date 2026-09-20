@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 export default function ParentPortalButton({ studentId }: { studentId: string }) {
   const [busy, setBusy] = useState(false);
   const [url, setUrl] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);\n  const [showFees, setShowFees] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [showFees, setShowFees] = useState(false);
 
   async function share() {
     setBusy(true);
@@ -40,7 +41,12 @@ export default function ParentPortalButton({ studentId }: { studentId: string })
           <p className="text-sm font-medium">Parent portal</p>
           <p className="text-xs text-muted-foreground">Share a read-only view for this student.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">\n          <label className="flex items-center gap-2 text-xs text-muted-foreground">\n            <input type="checkbox" checked={showFees} onChange={(e) => setShowFees(e.target.checked)} className="size-4 rounded border-white/10 bg-black/20" />\n            Show fee details\n          </label>\n          <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-xs text-muted-foreground">
+            <input type="checkbox" checked={showFees} onChange={(e) => setShowFees(e.target.checked)} className="size-4 rounded border-white/10 bg-black/20" />
+            Show fee details
+          </label>
+          <div className="flex gap-2">
           <Button type="button" size="sm" onClick={share} disabled={busy}>
             <Link2 className="size-4" />
             {busy ? "Creating…" : "Create link"}
