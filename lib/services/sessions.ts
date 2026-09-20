@@ -28,7 +28,7 @@ function toMinutes(time: string): number {
   return hours * 60 + minutes;
 }
 
-function sortSessions(first: Session, second: Session): number {
+export function sortSessions(first: Session, second: Session): number {
   return `${first.date}T${first.startTime}`.localeCompare(
     `${second.date}T${second.startTime}`
   );
@@ -120,77 +120,6 @@ export function getMonthCalendarDays(date = new Date()): MonthCalendarDay[] {
     if (day < 1 || day > daysInMonth) return { date: null, day: null };
     return { date: toDateKey(new Date(year, month, day)), day };
   });
-}
-
-export async function getTodaysSessions(
-  allSessions: readonly Session[] | undefined,
-  date = new Date()
-): Promise<Session[]> {
-  const records = allSessions ?? (await getAllSessions(date));
-  return records.filter((session) => session.date === toDateKey(date));
-}
-
-function getNowTimeKey(now = new Date()): string {
-  const dateKey = toDateKey(now);
-  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Kolkata",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return `${dateKey}T${timeFormatter.format(now)}`;
-}
-
-export async function getUpcomingSessions(
-  allSessions: readonly Session[] | undefined,
-  now = new Date()
-): Promise<Session[]> {
-  const nowKey = getNowTimeKey(now);
-  const records = allSessions ?? (await getAllSessions(now));
-  return records
-    .filter(
-      (session) =>
-        `${session.date}T${session.startTime}` >= nowKey &&
-        session.status !== SessionStatus.CANCELLED &&
-        session.status !== SessionStatus.COMPLETED
-    )
-    .sort(sortSessions);
-}
-
-export async function getPastSessions(
-  allSessions: readonly Session[] | undefined,
-  now = new Date()
-): Promise<Session[]> {
-  const nowKey = getNowTimeKey(now);
-  const records = allSessions ?? (await getAllSessions(now));
-  return records
-    .filter((session) => `${session.date}T${session.startTime}` < nowKey)
-    .sort((first, second) => sortSessions(second, first));
-}
-
-export async function getSessionsByStudent(
-  studentId: string,
-  allSessions?: readonly Session[]
-): Promise<Session[]> {
-  const records = allSessions ?? (await getAllSessions());
-  return records
-    .filter((session) => session.studentId === studentId)
-    .sort((first, second) => sortSessions(second, first));
-}
-
-export async function getSessionById(
-  sessionId: string,
-  allSessions?: readonly Session[]
-): Promise<Session | null> {
-  if (!allSessions) return findStoredSessionById(sessionId);
-  return allSessions.find((session) => session.id === sessionId) ?? null;
-}
-
-export async function getNextSession(
-  allSessions: readonly Session[] | undefined,
-  now = new Date()
-): Promise<Session | null> {
-  return (await getUpcomingSessions(allSessions, now))[0] ?? null;
 }
 
 export function getSessionDuration(session: Session): number {
