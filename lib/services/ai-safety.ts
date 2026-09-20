@@ -1,5 +1,4 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
-import type { Prisma } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
 import { rawPrisma } from "@/lib/db/raw";
 
@@ -19,7 +18,7 @@ export interface AuditEntry {
   resolvedDate?: string;
   userPrompt: string;
   result: string;
-  metadata?: Prisma.InputJsonValue;
+  metadata?: Record<string, unknown>;
 }
 
 
@@ -109,7 +108,7 @@ export async function logAiAuditTrail(
       resolvedDate: record.resolvedDate,
       userPrompt: record.userPrompt,
       result: record.result,
-      metadata: record.metadata,
+      metadata: record.metadata as never,
       createdAt: new Date(record.timestamp),
     },
   });
@@ -137,6 +136,6 @@ export async function getAuditLogs(limit = 100): Promise<AuditEntry[]> {
     resolvedDate: row.resolvedDate ?? undefined,
     userPrompt: row.userPrompt,
     result: row.result,
-    metadata: row.metadata as Prisma.InputJsonValue | undefined,
+    metadata: row.metadata as Record<string, unknown> | undefined,
   }));
 }
