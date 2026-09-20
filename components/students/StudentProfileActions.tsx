@@ -24,7 +24,7 @@ export default function StudentProfileActions({
 
   return (
     <div className="flex items-center gap-2">
-      <AddPastClassModal student={student} />
+      <AddPastClassModal schedules={schedules} student={student} />
       <Button size="sm" variant="outline" onClick={() => setScheduleOpen(true)}>
         <Calendar className="size-4" /> Schedule
       </Button>
