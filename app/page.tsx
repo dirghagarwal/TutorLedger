@@ -1,10 +1,15 @@
+import { requireTeacher } from "@/lib/auth/session";
+import { redirect } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import CommandBar from "@/components/workspace/CommandBar";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  const teacher = await requireTeacher().catch(() => null);
+  if (!teacher) redirect("/login");
+  
   return (
     <main className="min-h-screen bg-background text-foreground lg:flex">
       <Sidebar />
