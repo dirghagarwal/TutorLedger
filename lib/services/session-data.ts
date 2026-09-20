@@ -3,8 +3,7 @@ import { findSchedules } from "@/lib/repositories/schedules";
 import { findSessionById as findStoredSessionById, findSessions as findStoredSessions } from "@/lib/repositories/sessions";
 import type { Schedule } from "@/types/schedule";
 import type { Session } from "@/types/session";
-import { getDateKey } from "@/lib/utils/date";
-import { generateSessionsForMonth, groupSessionsByDate } from "@/lib/services/sessions";
+import { generateSessionsForMonth, sortSessions } from "@/lib/services/sessions";
 
 export async function getAllSessions(
   date = new Date(),
