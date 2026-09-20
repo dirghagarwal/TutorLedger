@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Menu, Search } from "lucide-react";
+import { Bell, LogOut, Menu, Search } from "lucide-react";
+import { logoutTeacher } from "@/app/actions/auth";
 
 import MobileSidebar from "@/components/layout/MobileSidebar";
 import { useSidebar } from "@/components/layout/SidebarContext";
