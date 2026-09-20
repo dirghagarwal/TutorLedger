@@ -1113,7 +1113,12 @@ function parsePromptFallback(
   if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees") || lower.includes("2k") || lower.includes("1k")) {
     const amountMatch = prompt.match(/(?:₹\s*)?(\d+(?:\.\d+)?)\s*(k|thousand)?\b/i);
     if (!amountMatch) {
-      return { action: "QUERY_STATS", queryTopic: "PENDING_FEES" };
+      return {
+        action: "RECORD_PAYMENT",
+        studentReference: matchedName,
+        method: PaymentMethod.UPI,
+        dateReference: dateReference || "today",
+      };
     }
 
     let amount = Number(amountMatch[1]);
