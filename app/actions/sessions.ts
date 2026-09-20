@@ -207,7 +207,7 @@ export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok
         date: input.date,
         method: PaymentMethod.UPI,
         status: PaymentStatus.PAID,
-        billingPeriod: new Date(input.date).toLocaleString("en-US", { month: "long", year: "numeric" }),
+        billingPeriod: input.date.slice(0, 7),
         notes: "Historical payment",
       });
     }
