@@ -329,7 +329,7 @@ export async function updateSessionAction(
           endTime: values.endTime,
           status: values.attendanceStatus,
           notes: "Recorded via manual session edit",
-        },
+        } as never,
       });
     }
 
