@@ -12,7 +12,7 @@ import { findStudents } from "@/lib/repositories/students";
 import {
   getDateKey,
   getMonthCalendarDays,
-  getSessionsForMonth,
+
   groupSessionsByDate,
 } from "@/lib/services/sessions";
 import type { Attachment } from "@/types/attachment";
