@@ -112,6 +112,13 @@ export async function registerTeacher(formData: FormData) {
   });
   const name = String(formData.get("name") ?? "").trim();
 
+  const inviteCode = String(formData.get("inviteCode") ?? "");
+  const expectedInviteCode = process.env.REGISTRATION_INVITE_CODE;
+
+  if (!expectedInviteCode || !matchesSetupKey(inviteCode, expectedInviteCode)) {
+    redirect("/register?error=invite");
+  }
+
   if (!parsed.success || name.length < 2) {
     redirect("/register?error=invalid");
   }
