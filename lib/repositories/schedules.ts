@@ -16,16 +16,10 @@ export async function findSchedulesByStudent(studentId: string): Promise<Schedul
 }
 
 export async function createSchedule(data: Omit<Schedule, "id"> & { id?: string; active?: boolean }): Promise<Schedule> {
-    const record = await tenantPrisma.schedule.create({
+  const record = await tenantPrisma.schedule.create({
     data: {
-      id: data.id ?? crypto.randomUUID(),
-      studentId: data.studentId,
-      dayOfWeek: data.dayOfWeek,
-      startTime: data.startTime,
-      endTime: data.endTime,
-      subject: data.subject,
-      active: data.active ?? true,
-      teacherId,
+      id: data.id ?? crypto.randomUUID(), studentId: data.studentId, dayOfWeek: data.dayOfWeek,
+      startTime: data.startTime, endTime: data.endTime, subject: data.subject, active: data.active ?? true,
     } as never,
   });
   return toSchedule(record);
