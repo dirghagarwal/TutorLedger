@@ -1,0 +1,119 @@
+name: Antigravity Bridge
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+
+concurrency:
+  group: antigravity-bridge
+  cancel-in-progress: false
+
+jobs:
+  run-antigravity:
+    if: >
+      github.event.issue.pull_request == null &&
+      github.actor == github.repository_owner &&
+      startsWith(github.event.comment.body, '/agy ')
+    runs-on: [self-hosted, Windows, X64, antigravity]
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Configure git
+        shell: pwsh
+        run: |
+          git config user.name "TutorLedger Antigravity"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --global --add safe.directory "$env:GITHUB_WORKSPACE"
+
+      - name: Create isolated work branch
+        shell: pwsh
+        run: |
+          $branch = "antigravity/issue-${{ github.event.issue.number }}-run-${{ github.run_id }}"
+          "AGY_BRANCH=$branch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
+          git switch -c $branch
+
+      - name: Run Antigravity
+        shell: pwsh
+        env:
+          AGY_REQUEST: ${{ github.event.comment.body }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          if (-not (Get-Command agy -ErrorAction SilentlyContinue)) {
+            throw "Antigravity CLI (agy) is not installed or is not on PATH."
+          }
+          $prompt = @"
+You are the local implementation commander for TutorLedger.
+
+Repository: ${{ github.repository }}
+Issue: #$env:ISSUE_NUMBER
+Workspace: $env:GITHUB_WORKSPACE
+
+The repository has been checked out from main into an isolated branch.
+Execute the authenticated /agy request below.
+
+User request:
+$env:AGY_REQUEST
+
+Rules:
+- Inspect the repository before changing it.
+- Make the smallest coherent production-quality implementation that satisfies the request.
+- Never expose, print, commit, or log passwords, API keys, tokens, database URLs, or other secrets.
+- Do not reset databases, run destructive migrations, seed production data, or deploy production.
+- Preserve tenant isolation and existing authentication security.
+- Run relevant tests/typecheck/lint/build when practical.
+- Leave the workspace with the implementation ready for review.
+- Do not modify files outside this repository.
+"@
+          agy -p $prompt --output-format json --print-timeout 90m | Tee-Object -FilePath "$env:GITHUB_WORKSPACE\antigravity-run.json" | Out-Host
+
+      - name: Commit implementation
+        shell: pwsh
+        run: |
+          git status --short
+          if (-not (git status --porcelain)) {
+            throw "Antigravity completed without producing repository changes."
+          }
+          git status --porcelain | Where-Object { $_ -notmatch "^\?\? antigravity-run\.json$" } | Out-Null
+          git add -A
+          git reset -- antigravity-run.json 2>$null
+          git add -A
+          git commit -m "feat: implement Antigravity request for issue #${{ github.event.issue.number }}"
+
+      - name: Push implementation branch
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git push --set-upstream origin $env:AGY_BRANCH
+
+      - name: Open pull request
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $body = "Automated Antigravity implementation for issue #${{ github.event.issue.number }}. Production deployment is intentionally not performed by this bridge."
+          $payload = @{ title = "Antigravity implementation for issue #${{ github.event.issue.number }}"; head = $env:AGY_BRANCH; base = "main"; body = $body } | ConvertTo-Json
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2026-03-10" }
+          $pr = Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/pulls" -Headers $headers -ContentType "application/json" -Body $payload
+          Write-Host "Pull request: $($pr.html_url)"
+
+      - name: Report completion
+        if: always()
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2026-03-10" }
+          $payload = @{ body = "Antigravity bridge run finished. Check the Actions run and generated PR for details." } | ConvertTo-Json
+          Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" -Headers $headers -ContentType "application/json" -Body $payload | Out-Null
