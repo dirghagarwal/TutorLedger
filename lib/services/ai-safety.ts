@@ -125,7 +125,21 @@ export async function getAuditLogs(limit = 100): Promise<AuditEntry[]> {
     take: Math.max(1, Math.min(limit, 500)),
   });
 
-  return rows.map((row) => ({
+  type AuditLogRow = {
+    createdAt: Date;
+    teacherId: string;
+    action: string;
+    entityType: string | null;
+    entityId: string | null;
+    studentId: string | null;
+    sessionId: string | null;
+    resolvedDate: string | null;
+    userPrompt: string;
+    result: string;
+    metadata: unknown;
+  };
+
+  return rows.map((row: AuditLogRow) => ({
     timestamp: row.createdAt.toISOString(),
     teacherId: row.teacherId,
     action: row.action,
