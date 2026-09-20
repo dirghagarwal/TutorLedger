@@ -1,5 +1,4 @@
-import { prisma } from "@/lib/db/prisma";
-import { getRequestTeacherId } from "@/lib/auth/session";
+import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import { SessionStatus, type Session } from "@/types/session";
 
 export interface SessionUpdateData {
@@ -8,22 +7,22 @@ export interface SessionUpdateData {
   durationMinutes?: number | null;
 }
 
-function toSession(record: Awaited<ReturnType<typeof prisma.session.findMany>>[number]): Session {
+function toSession(record: Awaited<ReturnType<typeof tenantPrisma.session.findMany>>[number]): Session {
   return { ...record, status: record.status as SessionStatus };
 }
 
 export async function findSessions(): Promise<Session[]> {
-  const records = await prisma.session.findMany({ orderBy: [{ date: "asc" }, { startTime: "asc" }] });
+  const records = await tenantPrisma.session.findMany({ orderBy: [{ date: "asc" }, { startTime: "asc" }] });
   return records.map(toSession);
 }
 
 export async function findSessionsByStudent(studentId: string): Promise<Session[]> {
-  const records = await prisma.session.findMany({ where: { studentId }, orderBy: [{ date: "desc" }, { startTime: "desc" }] });
+  const records = await tenantPrisma.session.findMany({ where: { studentId }, orderBy: [{ date: "desc" }, { startTime: "desc" }] });
   return records.map(toSession);
 }
 
 export async function findSessionById(id: string): Promise<Session | null> {
-  const record = await prisma.session.findUnique({ where: { id } });
+  const record = await tenantPrisma.session.findUnique({ where: { id } });
   return record ? toSession(record) : null;
 }
 
@@ -41,9 +40,7 @@ export interface SessionUpsertInput {
 }
 
 export async function upsertSession(input: SessionUpsertInput): Promise<Session> {
-  const teacherId = await getRequestTeacherId();
-  if (!teacherId) throw new Error("UNAUTHENTICATED");
-  const record = await prisma.session.upsert({
+    const record = await tenantPrisma.session.upsert({
     where: { id: input.id },
     create: {
       id: input.id,
@@ -78,9 +75,7 @@ export interface EnsureSessionInput {
 }
 
 export async function ensureSessionExists(input: EnsureSessionInput): Promise<Session> {
-  const teacherId = await getRequestTeacherId();
-  if (!teacherId) throw new Error("UNAUTHENTICATED");
-
+  
   if (input.sessionId) {
     const existingById = await findSessionById(input.sessionId);
     if (existingById) return existingById;
@@ -91,7 +86,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   let endTime = input.endTime ?? "17:30";
 
   if (!scheduleId) {
-    const schedules = await prisma.schedule.findMany({ where: { studentId: input.studentId, active: true } });
+    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true } });
     if (schedules.length > 0 && schedules[0]) {
       scheduleId = schedules[0].id;
       startTime = schedules[0].startTime;
@@ -102,7 +97,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   }
 
   const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}`;
-  const record = await prisma.session.upsert({
+  const record = await tenantPrisma.session.upsert({
     where: { studentId_date: { studentId: input.studentId, date: input.date } },
     create: {
       id: canonicalId,
@@ -125,7 +120,7 @@ export async function updateSessionStatus(
   data: SessionUpdateData = {},
   fallbackSession?: Partial<SessionUpsertInput>
 ): Promise<Session> {
-  const existing = await prisma.session.findUnique({ where: { id } });
+  const existing = await tenantPrisma.session.findUnique({ where: { id } });
   if (!existing && fallbackSession?.studentId) {
     const canonical = await ensureSessionExists({
       sessionId: id,
@@ -147,6 +142,6 @@ export async function updateSessionStatus(
     });
   }
 
-  const record = await prisma.session.update({ where: { id }, data: { status, ...data } });
+  const record = await tenantPrisma.session.update({ where: { id }, data: { status, ...data } });
   return toSession(record);
 }
