@@ -1,12 +1,9 @@
 import { prisma } from "@/lib/db/prisma";
+import { getRequestTeacherId } from "@/lib/auth/session";
 import type { SessionNote } from "@/types/session-note";
 
 function toSessionNote(record: Awaited<ReturnType<typeof prisma.sessionNote.findMany>>[number]): SessionNote {
-  return {
-    ...record,
-    createdAt: record.createdAt.toISOString(),
-    updatedAt: record.updatedAt.toISOString(),
-  };
+  return { ...record, createdAt: record.createdAt.toISOString(), updatedAt: record.updatedAt.toISOString() };
 }
 
 export async function findSessionNotesBySessionIds(sessionIds: readonly string[]): Promise<SessionNote[]> {
@@ -26,6 +23,8 @@ export async function findSessionNotes(): Promise<SessionNote[]> {
 }
 
 export async function createSessionNote(input: Omit<SessionNote, "createdAt" | "updatedAt">): Promise<SessionNote> {
-  const record = await prisma.sessionNote.create({ data: input });
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+  const record = await prisma.sessionNote.create({ data: { ...input, teacherId } as never });
   return toSessionNote(record);
 }
