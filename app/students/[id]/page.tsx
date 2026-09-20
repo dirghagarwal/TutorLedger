@@ -29,12 +29,12 @@ import {
   formatTime,
   formatWeeklySchedule,
   getNextUpcomingClass,
-  getSchedulesForStudent,
   getTodaysClasses,
 } from "@/lib/services/schedule";
 import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
 import { findPaymentAllocationsBySessionIds, findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
+import { getSchedulesForStudent } from "@/lib/services/schedule-data";
 
 export const dynamic = "force-dynamic";
 
