@@ -33,16 +33,28 @@ export async function createParentPortal(studentId: string, showFees = false) {
     },
   });
 
-  revalidatePath(`/students/${studentId}`);
+  revalidatePath("/settings");
   const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://tutor-ledger-sigma.vercel.app";
   return { url: `${origin}/portal/${token}`, expiresAt: expiresAt.toISOString() };
 }
 
+export async function revokeParentPortal(portalId: string) {
+  const teacher = await requireTeacher();
+  await rawPrisma.parentPortal.updateMany({
+    where: { id: portalId, teacherId: teacher.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  revalidatePath("/settings");
+}
+
+
+/** Backward-compatible action used by the student profile portal controls. */
 export async function revokeParentPortals(studentId: string) {
   const teacher = await requireTeacher();
   await rawPrisma.parentPortal.updateMany({
     where: { studentId, teacherId: teacher.id, revokedAt: null },
     data: { revokedAt: new Date() },
   });
+  revalidatePath("/settings");
   revalidatePath(`/students/${studentId}`);
 }

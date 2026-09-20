@@ -60,3 +60,21 @@ export async function logoutTeacher() {
   await destroyTeacherSession();
   redirect("/login");
 }
+
+
+export async function createTeacherAccount(formData: FormData) {
+  const current = await (await import("@/lib/auth/session")).requireTeacher();
+  const name = String(formData.get("name") ?? "").trim();
+  const email = String(formData.get("email") ?? "").trim().toLowerCase();
+  const password = String(formData.get("password") ?? "");
+  if (!name || !z.string().email().safeParse(email).success || password.length < 8) {
+    throw new Error("Enter a valid name, email and password of at least 8 characters.");
+  }
+  const existing = await rawPrisma.teacher.findUnique({ where: { email } });
+  if (existing) throw new Error("A teacher account with that email already exists.");
+  await rawPrisma.teacher.create({
+    data: { id: crypto.randomUUID(), name, email, passwordHash: hashPassword(password) },
+  });
+  void current;
+  redirect("/settings");
+}
