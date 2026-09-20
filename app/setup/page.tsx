@@ -35,7 +35,7 @@ export default async function SetupPage({
           <input id="name" name="name" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="email">Email</label>
           <input id="email" name="email" type="email" required className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
-          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="setupKey">One-time setup key</label>
+          <label className="mb-2 block text-sm text-muted-foreground" htmlFor="setupKey">Setup key or registration invite code</label>
           <input id="setupKey" name="setupKey" type="password" required autoComplete="off" className="mb-4 h-12 w-full rounded-xl border border-white/10 bg-black/20 px-4 outline-none focus:ring-2 focus:ring-primary/30" />
 
           <label className="mb-2 block text-sm text-muted-foreground" htmlFor="password">Password</label>
