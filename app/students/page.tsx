@@ -1,3 +1,4 @@
+import { requireTeacherPage } from "@/lib/auth/page-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import StudentsClient, { type StudentListItem } from "@/components/students/StudentsClient";
@@ -15,6 +16,7 @@ import type { Schedule } from "@/types/schedule";
 export const dynamic = "force-dynamic";
 
 export default async function StudentsPage() {
+  await requireTeacherPage();
   // Execute all repository queries in parallel (1 round-trip batch)
   const [students, attendanceRecords, schedules, payments, sessions] = await Promise.all([
     findStudents(),
