@@ -35,7 +35,7 @@ export interface RecentCommandItem {
   result: AiCommandResult;
 }
 
-export default function CommandBar() {
+export default function CommandBar({ minimal = false }: { minimal?: boolean }) {
   const router = useRouter();
   const { toast } = useToast();
   const [prompt, setPrompt] = useState("");
@@ -180,8 +180,8 @@ export default function CommandBar() {
   );
 
   return (
-    <div className="mt-6 mb-8 space-y-4">
-      <form onSubmit={handleSubmit} className="relative flex items-center">
+    <div className={`w-full ${minimal ? "mx-auto max-w-4xl" : "mt-6 mb-8 space-y-4"}`}>
+      <form onSubmit={handleSubmit} className={`relative flex items-center ${minimal ? "rounded-[28px] p-[1px] bg-gradient-to-r from-blue-500/20 via-violet-500/25 to-blue-500/10 shadow-[0_0_70px_rgba(70,90,255,0.07)]" : ""}`}>
         <div className="absolute left-4 text-primary pointer-events-none">
           <Sparkles className="size-5 animate-pulse" />
         </div>
@@ -190,7 +190,7 @@ export default function CommandBar() {
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Ask TutorLedger anything… (e.g. 'Took Aahan class today', 'Who owes money?', 'Aahan paid 2k')"
-          className="w-full rounded-2xl border border-input bg-card py-4 pl-12 pr-14 text-sm text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-ring/20 shadow-card"
+          className={`w-full ${minimal ? "rounded-[27px] border-white/8 bg-[#0a0b10] py-5 pl-14 pr-16 text-base shadow-none" : "rounded-2xl border border-input bg-card py-4 pl-12 pr-14 text-sm shadow-card"} text-foreground outline-none transition placeholder:text-muted-foreground focus:border-primary/40 focus:ring-2 focus:ring-ring/20`}
         />
 
         <Button
@@ -203,7 +203,7 @@ export default function CommandBar() {
         </Button>
       </form>
 
-      {/* Helper Bar & Active Context Indicator */}
+      {!minimal && (<>\n      {/* Helper Bar & Active Context Indicator */}
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-muted-foreground font-medium">Try asking:</span>
@@ -246,8 +246,8 @@ export default function CommandBar() {
         </div>
       </div>
 
-      {/* Recent Commands Section */}
-      {recentCommands.length > 0 && (
+            </>)}\n\n      {/* Recent Commands Section */}
+      {!minimal && recentCommands.length > 0 && (
         <div className="rounded-xl border border-border/50 bg-card/40 p-3 space-y-2">
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <span className="font-semibold text-foreground flex items-center gap-1.5">
