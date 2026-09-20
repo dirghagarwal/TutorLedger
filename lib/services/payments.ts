@@ -6,7 +6,7 @@ import { AttendanceStatus, type Attendance } from "@/types/attendance";
 import { PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
 import { getDateKey, getTodayDateKey } from "@/lib/utils/date";
-import { calculateLedgerBalance, calculateMonthlyAccruedFee } from "@/lib/services/billing";
+import { calculateLedgerBalance, calculateMonthlyAccruedFee, getMonthKey } from "@/lib/services/billing";
 import type { Session } from "@/types/session";
 
 function isCollected(payment: Payment): boolean {
@@ -121,10 +121,24 @@ async function getLedgerSnapshot(
       .filter((payment) => payment.studentId === studentId)
       .map((payment) => payment.date),
   ];
+  if (!student.active && historicalDates.length === 0) {
+    return { balance: calculateLedgerBalance(0, collected) };
+  }
+
+  const latestActivityMonth = historicalDates
+    .map(getMonthKey)
+    .filter((month) => month <= currentMonthKey)
+    .sort()
+    .at(-1);
+
+  const billingCurrentMonthKey =
+    !student.active && latestActivityMonth ? latestActivityMonth : currentMonthKey;
+
   const accruedFees = calculateMonthlyAccruedFee(
     student.fee,
-    currentMonthKey,
-    historicalDates
+    billingCurrentMonthKey,
+    historicalDates,
+    student.billingStartMonth,
   );
 
   return { balance: calculateLedgerBalance(accruedFees, collected) };

@@ -1,25 +1,24 @@
-import { createHash } from "node:crypto";
+import { cookies } from "next/headers";
 import { notFound } from "next/navigation";
-import { rawPrisma } from "@/lib/db/raw";
 
-function hashToken(token: string) {
-  return createHash("sha256").update(token).digest("hex");
-}
+import { getParentPortalCookieName, verifyParentPortalSessionValue } from "@/lib/auth/parent-portal";
+import { rawPrisma } from "@/lib/db/raw";
+import { calculateLedgerBalance, calculateMonthlyAccruedFee } from "@/lib/services/billing";
+import { getTodayDateKey } from "@/lib/utils/date";
 
 export const dynamic = "force-dynamic";
 
-export default async function ParentPortalPage({
-  params,
-}: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
+export default async function ParentPortalPage() {
+  const cookie = (await cookies()).get(getParentPortalCookieName());
+  const portalSession = verifyParentPortalSessionValue(cookie?.value);
+  if (!portalSession) notFound();
+
   const portal = await rawPrisma.parentPortal.findUnique({
-    where: { tokenHash: hashToken(token) },
+    where: { id: portalSession.portalId },
     include: { student: true, teacher: { select: { name: true } } },
   });
 
-  // The portal expiry is intentionally evaluated per request.
-  // eslint-disable-next-line react-hooks/purity
-  if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) notFound();
+  if (!portal || portal.revokedAt) notFound();
 
   const [sessions, notes, attendance] = await Promise.all([
     rawPrisma.session.findMany({
@@ -40,10 +39,57 @@ export default async function ParentPortalPage({
     }),
   ]);
 
-  const attendanceBySession = new Map<string, string>(attendance.map((row: { sessionId: string; status: string }) => [row.sessionId, row.status]));
-  const notesBySession = new Map<string, typeof notes[number]>();
-  for (const note of notes as Array<{ sessionId: string; topic: string; classwork: string; homework: string; remarks: string; createdAt: Date }>) {
+  const attendanceStatus = new Map<string, string>();
+  for (const row of attendance as Array<{ sessionId: string; status: string }>) {
+    attendanceStatus.set(row.sessionId, row.status);
+  }
+  type SessionNoteRow = {
+    sessionId: string;
+    topic: string;
+    classwork: string;
+    homework: string;
+    remarks: string;
+    createdAt: Date;
+  };
+  const notesBySession = new Map<string, SessionNoteRow>();
+  for (const note of notes as SessionNoteRow[]) {
     if (!notesBySession.has(note.sessionId)) notesBySession.set(note.sessionId, note);
+  }
+
+  let feeSummary: { outstanding: number; credit: number } | null = null;
+  if (portal.showFees) {
+    const payments = await rawPrisma.payment.findMany({
+      where: { studentId: portal.studentId, teacherId: portal.teacherId },
+      select: { amount: true, status: true, date: true },
+    });
+    const collected = payments
+      .filter(
+        (payment: { amount: number; status: string; date: string }) =>
+          payment.status === "PAID" || payment.status === "PARTIAL",
+      )
+      .reduce(
+        (sum: number, payment: { amount: number; status: string; date: string }) =>
+          sum + payment.amount,
+        0,
+      );
+
+    if (portal.student.feeType === "CLASSWISE") {
+      const attendedCount = attendance.filter(
+        (row: { sessionId: string; status: string }) => row.status === "PRESENT",
+      ).length;
+      feeSummary = calculateLedgerBalance(attendedCount * portal.student.fee, collected);
+    } else {
+      const historicalDates = [
+        ...sessions.map((item: { id: string; date: string; startTime: string; endTime: string; status: string }) => item.date),
+        ...payments.map((payment: { amount: number; status: string; date: string }) => payment.date),
+      ];
+      const accrued = calculateMonthlyAccruedFee(
+        portal.student.fee,
+        getTodayDateKey().slice(0, 7),
+        historicalDates,
+      );
+      feeSummary = calculateLedgerBalance(accrued, collected);
+    }
   }
 
   return (
@@ -68,10 +114,16 @@ export default async function ParentPortalPage({
             <p className="text-xs text-white/45">Latest class</p>
             <p className="mt-1 text-sm font-medium">{sessions[0]?.date ?? "—"}</p>
           </div>
-          {portal.showFees && (
+          {portal.showFees && feeSummary && (
             <div className="rounded-2xl border border-white/8 bg-white/[0.035] p-4">
-              <p className="text-xs text-white/45">Fee model</p>
-              <p className="mt-1 text-sm font-medium">{portal.student.feeType} · ₹{portal.student.fee.toLocaleString("en-IN")}</p>
+              <p className="text-xs text-white/45">Fee status</p>
+              <p className="mt-1 text-sm font-medium">
+                {feeSummary.outstanding > 0
+                  ? `₹${feeSummary.outstanding.toLocaleString("en-IN")} outstanding`
+                  : feeSummary.credit > 0
+                    ? `₹${feeSummary.credit.toLocaleString("en-IN")} credit`
+                    : "Paid through current ledger"}
+              </p>
             </div>
           )}
         </section>
@@ -92,14 +144,14 @@ export default async function ParentPortalPage({
                       <p className="text-xs text-white/45">{session.startTime}–{session.endTime}</p>
                     </div>
                     <span className="rounded-full border border-white/8 px-2.5 py-1 text-xs text-white/60">
-                      {attendanceBySession.get(session.id) ?? session.status}
+                      {attendanceStatus.get(session.id) ?? session.status}
                     </span>
                   </div>
                   {note && (
                     <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                      {note.topic && <Info label="Topic" value={note.topic} />}
-                      {note.classwork && <Info label="Classwork" value={note.classwork} />}
-                      {note.homework && <Info label="Homework" value={note.homework} />}
+                      {note.topic && <Info label="Topic" value={note.topic} /> }
+                      {note.classwork && <Info label="Classwork" value={note.classwork} /> }
+                      {note.homework && <Info label="Homework" value={note.homework} /> }
                     </div>
                   )}
                 </article>
@@ -109,7 +161,7 @@ export default async function ParentPortalPage({
           </div>
         </section>
 
-        <p className="mt-6 text-center text-xs text-white/30">This private link is read-only and can be revoked by the tutor.</p>
+        <p className="mt-6 text-center text-xs text-white/30">This private portal session is read-only and can be revoked by the tutor.</p>
       </div>
     </main>
   );
@@ -119,7 +171,7 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-xl border border-white/6 bg-black/10 p-3">
       <p className="text-[11px] uppercase tracking-wider text-white/35">{label}</p>
-      <p className="mt-1 text-sm text-white/75 whitespace-pre-wrap">{value}</p>
+      <p className="mt-1 whitespace-pre-wrap text-sm text-white/75">{value}</p>
     </div>
   );
 }

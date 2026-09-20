@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { loginTeacher } from "@/app/actions/auth";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +21,11 @@ export default async function LoginPage({
         </div>
 
         <form action={loginTeacher} className="rounded-3xl border border-white/10 bg-white/[0.035] p-6 shadow-2xl shadow-black/30 backdrop-blur-xl">
+          {error === "setup-disabled" && (
+            <p className="mb-4 rounded-xl border border-warning/20 bg-warning/10 px-3 py-2 text-sm text-warning">
+              Initial workspace setup is disabled until the owner configures the server-side setup key.
+            </p>
+          )}
           {error === "invalid" && (
             <p className="mb-4 rounded-xl border border-destructive/20 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               Incorrect email or password.
@@ -32,7 +39,9 @@ export default async function LoginPage({
             Sign in
           </button>
         </form>
-        <p className="mt-4 text-center text-xs text-muted-foreground">Your workspace is private to your teacher account.</p>
+        <p className="mt-4 text-center text-xs text-muted-foreground">
+          Your workspace is private to your teacher account. <Link href="/register" className="text-foreground underline underline-offset-4">Create an account</Link>
+        </p>
       </div>
     </main>
   );

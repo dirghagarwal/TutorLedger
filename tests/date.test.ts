@@ -24,3 +24,8 @@ test("keeps multi-date weekday parsing distinct", () => {
     [parseRelativeDate("Wednesday", null, saturday), parseRelativeDate("Friday", null, saturday)],
   );
 });
+
+
+test("parses dotted Indian dates", () => {
+  assert.equal(parseRelativeDate("15.08.2026", null, saturday), "2026-08-15");
+});

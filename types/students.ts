@@ -10,6 +10,7 @@ export interface Student {
 
   feeType: FeeType;
   fee: number;
+  billingStartMonth?: string | null;
 
   active: boolean;
 

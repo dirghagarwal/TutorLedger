@@ -1,10 +1,13 @@
+import { requireTeacherPage } from "@/lib/auth/page-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import CommandBar from "@/components/workspace/CommandBar";
 
 export const dynamic = "force-dynamic";
 
-export default function Home() {
+export default async function Home() {
+  await requireTeacherPage();
+
   return (
     <main className="min-h-screen bg-background text-foreground lg:flex">
       <Sidebar />

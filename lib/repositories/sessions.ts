@@ -1,4 +1,5 @@
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
+import { getTodayDateKey } from "@/lib/utils/date";
 import { SessionStatus, type Session } from "@/types/session";
 
 export interface SessionUpdateData {
@@ -59,7 +60,7 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   let endTime = input.endTime ?? "17:30";
 
   if (!scheduleId) {
-    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true } });
+    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true }, orderBy: { startTime: "asc" } });
     if (schedules.length > 0 && schedules[0]) {
       scheduleId = schedules[0].id;
       startTime = schedules[0].startTime;
@@ -69,9 +70,15 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
     }
   }
 
-  const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}`;
+  const canonicalId = input.sessionId || `session-${input.studentId}-${input.date}-${startTime.replace(/:/g, "")}`;
   const record = await tenantPrisma.session.upsert({
-    where: { studentId_date: { studentId: input.studentId, date: input.date } },
+    where: {
+      studentId_date_startTime: {
+        studentId: input.studentId,
+        date: input.date,
+        startTime,
+      },
+    },
     create: {
       id: canonicalId, studentId: input.studentId, scheduleId, date: input.date,
       startTime, endTime, status: SessionStatus.PLANNED,
@@ -91,7 +98,7 @@ export async function updateSessionStatus(
   if (!existing && fallbackSession?.studentId) {
     const canonical = await ensureSessionExists({
       sessionId: id, studentId: fallbackSession.studentId, scheduleId: fallbackSession.scheduleId,
-      date: fallbackSession.date ?? new Date().toISOString().slice(0, 10),
+      date: fallbackSession.date ?? getTodayDateKey(),
       startTime: fallbackSession.startTime, endTime: fallbackSession.endTime,
     });
     return upsertSession({

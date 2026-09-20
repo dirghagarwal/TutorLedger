@@ -1,6 +1,7 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { rawPrisma } from "@/lib/db/raw";
 import {
@@ -9,6 +10,13 @@ import {
   hashPassword,
   verifyPassword,
 } from "@/lib/auth/session";
+
+
+function matchesSetupKey(provided: string, expected: string): boolean {
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
 
 const credentialsSchema = z.object({
   email: z.string().trim().email(),
@@ -39,8 +47,24 @@ export async function setupTeacher(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const setupKey = String(formData.get("setupKey") ?? "");
+  const expectedSetupKey = process.env.TUTORLEDGER_SETUP_KEY;
+  const expectedInviteCode = process.env.REGISTRATION_INVITE_CODE;
+  const validSetupCredential =
+    (expectedSetupKey ? matchesSetupKey(setupKey, expectedSetupKey) : false) ||
+    (expectedInviteCode ? matchesSetupKey(setupKey, expectedInviteCode) : false);
 
-  if (!name || !z.string().email().safeParse(email).success || password.length < 8) {
+  if (process.env.NODE_ENV === "production" && !expectedSetupKey) {
+    redirect("/login?error=setup-disabled");
+  }
+
+  if (
+    !name ||
+    !z.string().email().safeParse(email).success ||
+    password.length < 8 ||
+    (!validSetupCredential && process.env.NODE_ENV === "production") ||
+    (!validSetupCredential && !expectedSetupKey && !expectedInviteCode)
+  ) {
     redirect("/setup?error=invalid");
   }
 
@@ -77,4 +101,42 @@ export async function createTeacherAccount(formData: FormData) {
   });
   void current;
   redirect("/settings");
+}
+
+
+export async function registerTeacher(formData: FormData) {
+  const parsed = credentialsSchema.safeParse({
+    email: formData.get("email"),
+    password: formData.get("password"),
+  });
+  const name = String(formData.get("name") ?? "").trim();
+
+  const inviteCode = String(formData.get("inviteCode") ?? "");
+  const expectedInviteCode = process.env.REGISTRATION_INVITE_CODE;
+
+  if (!expectedInviteCode || !matchesSetupKey(inviteCode, expectedInviteCode)) {
+    redirect("/register?error=invite");
+  }
+
+  if (!parsed.success || name.length < 2) {
+    redirect("/register?error=invalid");
+  }
+
+  const email = parsed.data.email.toLowerCase();
+  const existing = await rawPrisma.teacher.findUnique({ where: { email } });
+  if (existing) {
+    redirect("/register?error=exists");
+  }
+
+  const teacher = await rawPrisma.teacher.create({
+    data: {
+      id: crypto.randomUUID(),
+      name,
+      email,
+      passwordHash: hashPassword(parsed.data.password),
+    },
+  });
+
+  await createTeacherSession(teacher.id);
+  redirect("/");
 }

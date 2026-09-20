@@ -2,6 +2,7 @@ import { ArrowLeft, CalendarDays, IndianRupee, WalletCards } from "lucide-react"
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { requireTeacherPage } from "@/lib/auth/page-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import AttendanceTimeline from "@/components/students/AttendanceTimeline";
 import MonthlyClassTracker from "@/components/students/MonthlyClassTracker";
@@ -52,6 +53,8 @@ const feeTypeLabels: Record<FeeType, string> = {
 export default async function StudentProfilePage({
   params,
 }: { params: Promise<{ id: string }> }) {
+  await requireTeacherPage();
+
   const { id } = await params;
   const [
     student,

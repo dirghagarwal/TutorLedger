@@ -2,9 +2,12 @@
 
 import { revalidatePath } from "next/cache";
 
+import { logAiAuditTrail } from "@/lib/services/ai-safety";
+
 import {
   archiveStudent as archiveStudentRecord,
   createStudent,
+  findStudentById,
   deleteStudent as deleteStudentRecord,
   updateStudent,
   type StudentInput,
@@ -22,6 +25,14 @@ function failure(error: unknown): ActionResult {
   return { ok: false, error: error instanceof Error ? error.message : "Unable to save student." };
 }
 
+function getCurrentBillingMonth(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Kolkata",
+    year: "numeric",
+    month: "2-digit",
+  }).format(new Date());
+}
+
 function safeRevalidate(path: string) {
   try {
     revalidatePath(path);
@@ -32,7 +43,11 @@ function safeRevalidate(path: string) {
 
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
-    const student = await createStudent({ id: crypto.randomUUID(), ...parseInput(input) });
+    const student = await createStudent({
+      id: crypto.randomUUID(),
+      ...parseInput(input),
+      billingStartMonth: getCurrentBillingMonth(),
+    });
     safeRevalidate("/students");
     safeRevalidate("/calendar");
     safeRevalidate("/");
@@ -68,9 +83,33 @@ export async function archiveStudent(id: string): Promise<ActionResult> {
   }
 }
 
-export async function deleteStudent(id: string): Promise<{ ok: true } | { ok: false; error: string }> {
+export async function deleteStudent(
+  id: string,
+  confirmationText: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
+    const student = await findStudentById(id);
+    if (!student) return { ok: false, error: "Student record not found." };
+
+    const expected = `DELETE ${student.name.toUpperCase()}`;
+    if (confirmationText.trim().toUpperCase() !== expected) {
+      return { ok: false, error: "Strong deletion confirmation did not match the student name." };
+    }
+
     await deleteStudentRecord(id);
+
+    try {
+      await logAiAuditTrail({
+        action: "DELETE_STUDENT",
+        entityType: "Student",
+        entityId: id,
+        userPrompt: confirmationText,
+        result: "SUCCESS: Student permanently deleted after server-side confirmation.",
+      });
+    } catch {
+      // Never turn a committed deletion into a retryable client failure because auditing failed.
+    }
+
     safeRevalidate("/students");
     safeRevalidate("/calendar");
     safeRevalidate("/");

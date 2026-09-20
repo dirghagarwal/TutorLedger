@@ -1,4 +1,6 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
+import { getRequestTeacherId } from "@/lib/auth/session";
+import { rawPrisma } from "@/lib/db/raw";
 
 /**
  * Central AI Safety Policy & Audit Logging for TutorLedger V2
@@ -7,15 +9,19 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 
 export interface AuditEntry {
   timestamp: string;
+  teacherId: string;
   action: string;
+  entityType?: string;
+  entityId?: string;
   studentId?: string;
   sessionId?: string;
   resolvedDate?: string;
   userPrompt: string;
   result: string;
+  metadata?: Record<string, unknown>;
 }
 
-const auditLogs: AuditEntry[] = [];
+
 const CONFIRMATION_TTL_MS = 5 * 60 * 1000;
 
 function confirmationSecret(): string {
@@ -76,17 +82,74 @@ export function verifyConfirmationToken(
   }
 }
 
-export function logAiAuditTrail(entry: Omit<AuditEntry, "timestamp">): void {
+export async function logAiAuditTrail(
+  entry: Omit<AuditEntry, "timestamp" | "teacherId">
+): Promise<void> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+
   const record: AuditEntry = {
     timestamp: new Date().toISOString(),
+    teacherId,
     ...entry,
+    userPrompt: entry.userPrompt.slice(0, 4000),
+    result: entry.result.slice(0, 2000),
   };
-  auditLogs.push(record);
-  console.log(
-    `[AI AUDIT SAFETY LOG] ${record.timestamp} | Action: ${record.action} | Student: ${record.studentId ?? "N/A"} | Session: ${record.sessionId ?? "N/A"} | Date: ${record.resolvedDate ?? "N/A"} | Result: ${record.result}`
-  );
+
+  await rawPrisma.auditLog.create({
+    data: {
+      id: crypto.randomUUID(),
+      teacherId,
+      action: record.action,
+      entityType: record.entityType,
+      entityId: record.entityId,
+      studentId: record.studentId,
+      sessionId: record.sessionId,
+      resolvedDate: record.resolvedDate,
+      userPrompt: record.userPrompt,
+      result: record.result,
+      metadata: record.metadata as never,
+      createdAt: new Date(record.timestamp),
+    },
+  });
+
 }
 
-export function getAuditLogs(): readonly AuditEntry[] {
-  return auditLogs;
+export async function getAuditLogs(limit = 100): Promise<AuditEntry[]> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+
+  const rows = await rawPrisma.auditLog.findMany({
+    where: { teacherId },
+    orderBy: { createdAt: "desc" },
+    take: Math.max(1, Math.min(limit, 500)),
+  });
+
+  type AuditLogRow = {
+    createdAt: Date;
+    teacherId: string;
+    action: string;
+    entityType: string | null;
+    entityId: string | null;
+    studentId: string | null;
+    sessionId: string | null;
+    resolvedDate: string | null;
+    userPrompt: string;
+    result: string;
+    metadata: unknown;
+  };
+
+  return rows.map((row: AuditLogRow) => ({
+    timestamp: row.createdAt.toISOString(),
+    teacherId: row.teacherId,
+    action: row.action,
+    entityType: row.entityType ?? undefined,
+    entityId: row.entityId ?? undefined,
+    studentId: row.studentId ?? undefined,
+    sessionId: row.sessionId ?? undefined,
+    resolvedDate: row.resolvedDate ?? undefined,
+    userPrompt: row.userPrompt,
+    result: row.result,
+    metadata: row.metadata as Record<string, unknown> | undefined,
+  }));
 }

@@ -96,7 +96,7 @@ export function parseRelativeDate(
   if (isoMatch?.[1]) return isoMatch[1];
 
   // 2. Explicit numeric date (DD/MM/YYYY, DD-MM-YYYY)
-  const numericMatch = cleaned.match(/\b(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})\b/);
+  const numericMatch = cleaned.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})\b/);
   if (numericMatch?.[1] && numericMatch[2] && numericMatch[3]) {
     const day = Number(numericMatch[1]);
     const month = Number(numericMatch[2]) - 1;

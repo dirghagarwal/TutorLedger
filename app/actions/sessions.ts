@@ -8,6 +8,7 @@ import { createAttachment } from "@/lib/repositories/attachments";
 import { createSessionNote } from "@/lib/repositories/session-notes";
 import { ensureSessionExists, findSessionById, upsertSession } from "@/lib/repositories/sessions";
 import { logAiAuditTrail } from "@/lib/services/ai-safety";
+import { getTodayDateKey } from "@/lib/utils/date";
 import { attachmentTypeSchema, sessionNoteInputSchema } from "@/lib/validations/session";
 import { AttendanceStatus } from "@/types/attendance";
 import { PaymentMethod, PaymentStatus } from "@/types/payment";
@@ -45,7 +46,7 @@ export async function addSessionNote(input: unknown): Promise<{ ok: true } | { o
         id: values.sessionId,
         studentId: values.studentId,
         scheduleId: values.scheduleId,
-        date: values.date ?? new Date().toISOString().slice(0, 10),
+        date: values.date ?? getTodayDateKey(),
         startTime: values.startTime ?? "09:00",
         endTime: values.endTime ?? "10:00",
         status: SessionStatus.PLANNED,
@@ -83,7 +84,7 @@ export async function addSessionAttachment(formData: FormData): Promise<{ ok: tr
         id: sessionId,
         studentId,
         scheduleId,
-        date: String(formData.get("date") ?? new Date().toISOString().slice(0, 10)),
+        date: String(formData.get("date") ?? getTodayDateKey()),
         startTime: String(formData.get("startTime") ?? "09:00"),
         endTime: String(formData.get("endTime") ?? "10:00"),
         status: SessionStatus.PLANNED,
@@ -128,7 +129,7 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
       throw new Error("CRITICAL SAFETY VIOLATION: Student record was affected during session delete!");
     }
 
-    logAiAuditTrail({
+    await logAiAuditTrail({
       action: "DELETE_SESSION",
       studentId,
       sessionId,
@@ -206,7 +207,7 @@ export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok
         date: input.date,
         method: PaymentMethod.UPI,
         status: PaymentStatus.PAID,
-        billingPeriod: new Date(input.date).toLocaleString("en-US", { month: "long", year: "numeric" }),
+        billingPeriod: input.date.slice(0, 7),
         notes: "Historical payment",
       });
     }

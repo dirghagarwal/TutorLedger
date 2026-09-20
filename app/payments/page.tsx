@@ -1,3 +1,4 @@
+import { requireTeacherPage } from "@/lib/auth/page-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import PaymentsClient from "@/components/payments/PaymentsClient";
@@ -17,6 +18,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function PaymentsPage() {
+  await requireTeacherPage();
   const [students, payments, sessions, attendance] = await Promise.all([
     findStudents(),
     findPayments(),

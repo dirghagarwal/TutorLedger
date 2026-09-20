@@ -16,6 +16,26 @@ model Teacher {
   students      Student[]
   sessions      TeacherSession[]
   parentPortals ParentPortal[]
+  auditLogs     AuditLog[]
+}
+
+model AuditLog {
+  id          String   @id
+  teacherId   String
+  action      String
+  entityType  String?
+  entityId    String?
+  studentId   String?
+  sessionId   String?
+  resolvedDate String?
+  userPrompt  String
+  result      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  @@index([teacherId, createdAt])
+  @@index([teacherId, action, createdAt])
+  @@index([studentId, createdAt])
 }
 
 model TeacherSession {
@@ -50,6 +70,7 @@ model Student {
   subject   String
   feeType   String
   fee       Int
+  billingStartMonth String?
   active    Boolean
   color     String
   teacher   Teacher    @relation(fields: [teacherId], references: [id], onDelete: Cascade)
@@ -94,7 +115,7 @@ model Session {
   paymentAllocations PaymentAllocation[]
   notes      SessionNote[]
   attachments Attachment[]
-  @@unique([studentId, date])
+  @@unique([studentId, date, startTime])
   @@index([studentId, date])
   @@index([scheduleId, date])
   @@index([teacherId])
