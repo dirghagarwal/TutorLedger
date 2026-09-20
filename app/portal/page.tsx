@@ -39,7 +39,6 @@ export default async function ParentPortalPage() {
     }),
   ]);
 
-  const attendanceBySession = new Map(sessions.map(() => [] as never));
   const attendanceStatus = new Map(attendance.map((row) => [row.sessionId, row.status]));
   const notesBySession = new Map<string, typeof notes[number]>();
   for (const note of notes) {
@@ -57,9 +56,7 @@ export default async function ParentPortalPage() {
       .reduce((sum, payment) => sum + payment.amount, 0);
 
     if (portal.student.feeType === "CLASSWISE") {
-      const attendedCount = attendance.filter(
-        (row) => row.status === "PRESENT" && sessions.some((session) => session.id === row.sessionId)
-      ).length;
+      const attendedCount = attendance.filter((row) => row.status === "PRESENT").length;
       feeSummary = calculateLedgerBalance(attendedCount * portal.student.fee, collected);
     } else {
       const historicalDates = [
