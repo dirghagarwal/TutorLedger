@@ -121,9 +121,22 @@ async function getLedgerSnapshot(
       .filter((payment) => payment.studentId === studentId)
       .map((payment) => payment.date),
   ];
+  if (!student.active && historicalDates.length === 0) {
+    return { balance: calculateLedgerBalance(0, collected) };
+  }
+
+  const latestActivityMonth = historicalDates
+    .map(getMonthKey)
+    .filter((month) => month <= currentMonthKey)
+    .sort()
+    .at(-1);
+
+  const billingCurrentMonthKey =
+    !student.active && latestActivityMonth ? latestActivityMonth : currentMonthKey;
+
   const accruedFees = calculateMonthlyAccruedFee(
     student.fee,
-    currentMonthKey,
+    billingCurrentMonthKey,
     historicalDates,
     student.billingStartMonth,
   );
