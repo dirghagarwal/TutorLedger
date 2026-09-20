@@ -10,6 +10,7 @@ import {
   updateSessionStatus,
 } from "@/lib/repositories/sessions";
 import { getSessionStatusForAttendance } from "@/lib/services/workflow";
+import { logAiAuditTrail } from "@/lib/services/ai-safety";
 import {
   attendanceInputSchema,
   paymentInputSchema,
@@ -194,6 +195,27 @@ export async function recordPayment(input: unknown): Promise<PaymentResult> {
     const verified = await findPaymentById(id);
     if (!verified) {
       return { ok: false, error: "Payment recorded, but database verification failed." };
+    }
+
+    try {
+      await logAiAuditTrail({
+        action: "RECORD_PAYMENT",
+        entityType: "Payment",
+        entityId: verified.id,
+        studentId: verified.studentId,
+        sessionId: verified.sessionId ?? undefined,
+        resolvedDate: verified.date,
+        userPrompt: "Payment recorded",
+        result: "SUCCESS: Payment recorded and verified.",
+        metadata: {
+          amount: verified.amount,
+          method: verified.method,
+          status: verified.status,
+          billingPeriod: verified.billingPeriod,
+        },
+      });
+    } catch {
+      // Audit persistence must not turn a successfully committed payment into a retryable failure.
     }
 
     revalidateWorkflow();
