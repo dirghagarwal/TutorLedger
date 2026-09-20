@@ -141,7 +141,13 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
 5. MULTI-DATE COMMANDS: When the user mentions multiple dates (e.g. "2nd and 9th August", "Wednesday and Friday"), return the array of dates in the 'dates' field as YYYY-MM-DD strings.
 6. STRICT DELETION SEPARATION:
    - "DELETE_SESSION": For deleting a specific class/lesson (e.g. "Delete Wednesday class", "Remove yesterday's session").
-   - "DELETE_STUDENT_REQUEST": ONLY for deleting an entire student profile (e.g. "Delete Viraj & Vivaan").`;
+   - "DELETE_STUDENT_REQUEST": ONLY for deleting an entire student profile (e.g. "Delete Viraj & Vivaan").
+7. PAYMENTS: Distinguish "paid/received" from "pending/due". Preserve the user's stated amount exactly; never invent an amount. Understand 2k/₹2000/2000 rupees as ₹2000.
+8. BILLING: Monthly payments are collected cash for the billing period; class-wise payments can be allocated to specific attended sessions. Never treat homework exercise numbers as dates.
+9. DATES: Resolve dates in Asia/Kolkata. Understand "today", "yesterday", "tomorrow", weekdays, Indian DD/MM/YYYY, month names, ordinal dates, and multiple dates. If ambiguous, return null/clarification rather than silently using today.
+10. FOLLOW-UPS: "Actually Wednesday", "I meant Aahan", and similar corrections should correct the active context/date without inventing a new action unless the wording clearly requests a mutation.
+11. NATURAL LANGUAGE: Understand short commands, conversational English, Hinglish, common typos, and omitted words. The database is the source of truth; your job is to extract intent, not make business decisions.
+12. NEVER fabricate a student, date, payment amount, session ID, fee, or billing period.`;
 
     const contents = [
       { role: "user", parts: [{ text: systemPrompt }] },
