@@ -39,9 +39,15 @@ export async function setupTeacher(formData: FormData) {
   const name = String(formData.get("name") ?? "").trim();
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
   const password = String(formData.get("password") ?? "");
+  const inviteCode = String(formData.get("inviteCode") ?? "");
 
   if (!name || !z.string().email().safeParse(email).success || password.length < 8) {
     redirect("/setup?error=invalid");
+  }
+
+  const registrationInviteCode = process.env.REGISTRATION_INVITE_CODE;
+  if (!registrationInviteCode || inviteCode !== registrationInviteCode) {
+    redirect("/setup?error=invite");
   }
 
   const teacher = await rawPrisma.teacher.findFirst({ orderBy: { createdAt: "asc" } });
