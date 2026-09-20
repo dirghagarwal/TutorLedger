@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/db/prisma";
+import { getRequestTeacherId } from "@/lib/auth/session";
 import { DayOfWeek, type Schedule } from "@/types/schedule";
 
 function toSchedule(record: Awaited<ReturnType<typeof prisma.schedule.findMany>>[number]): Schedule {
@@ -16,6 +17,8 @@ export async function findSchedulesByStudent(studentId: string): Promise<Schedul
 }
 
 export async function createSchedule(data: Omit<Schedule, "id"> & { id?: string; active?: boolean }): Promise<Schedule> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
   const record = await prisma.schedule.create({
     data: {
       id: data.id ?? crypto.randomUUID(),
@@ -25,16 +28,14 @@ export async function createSchedule(data: Omit<Schedule, "id"> & { id?: string;
       endTime: data.endTime,
       subject: data.subject,
       active: data.active ?? true,
-    },
+      teacherId,
+    } as never,
   });
   return toSchedule(record);
 }
 
 export async function updateSchedule(id: string, data: Partial<Omit<Schedule, "id">>): Promise<Schedule> {
-  const record = await prisma.schedule.update({
-    where: { id },
-    data,
-  });
+  const record = await prisma.schedule.update({ where: { id }, data });
   return toSchedule(record);
 }
 
