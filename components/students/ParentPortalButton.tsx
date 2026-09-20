@@ -43,17 +43,23 @@ export default function ParentPortalButton({ studentId }: { studentId: string })
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-xs text-muted-foreground">
-            <input type="checkbox" checked={showFees} onChange={(e) => setShowFees(e.target.checked)} className="size-4 rounded border-white/10 bg-black/20" />
+            <input
+              type="checkbox"
+              checked={showFees}
+              onChange={(e) => setShowFees(e.target.checked)}
+              className="size-4 rounded border-white/10 bg-black/20"
+            />
             Show fee details
           </label>
           <div className="flex gap-2">
-          <Button type="button" size="sm" onClick={share} disabled={busy}>
-            <Link2 className="size-4" />
-            {busy ? "Creating…" : "Create link"}
-          </Button>
-          <Button type="button" size="sm" variant="ghost" onClick={revoke} disabled={busy}>
-            Revoke
-          </Button>
+            <Button type="button" size="sm" onClick={share} disabled={busy}>
+              <Link2 className="size-4" />
+              {busy ? "Creating…" : "Create link"}
+            </Button>
+            <Button type="button" size="sm" variant="ghost" onClick={revoke} disabled={busy}>
+              Revoke
+            </Button>
+          </div>
         </div>
       </div>
       {url && (
