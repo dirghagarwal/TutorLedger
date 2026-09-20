@@ -1118,7 +1118,7 @@ function parsePromptFallback(
 
   if (lower.includes("payment") || lower.includes("paid") || lower.includes("₹") || lower.includes("rupees") || lower.includes("2k") || lower.includes("1k")) {
     const amountMatch = prompt.match(/(\d+)\s*k?/i);
-    let amount = amountMatch ? Number(amountMatch[1]) : 1000;
+    let amount = amountMatch ? Number(amountMatch[1]) : undefined;
     if (prompt.toLowerCase().includes("2k")) amount = 2000;
     if (prompt.toLowerCase().includes("1k")) amount = 1000;
 
@@ -1136,11 +1136,11 @@ function parsePromptFallback(
 
 function getRandomAvatarColor(): string {
   const colors = [
-    "hsl(215 85% 55%)",
-    "hsl(150 70% 45%)",
-    "hsl(280 75% 60%)",
-    "hsl(35 90% 55%)",
-    "hsl(340 80% 58%)",
+    "#6f8cff",
+    "#5fc49a",
+    "#9b7be8",
+    "#d8a45d",
+    "#d87391",
   ];
-  return colors[Math.floor(Math.random() * colors.length)] ?? "hsl(215 85% 55%)";
+  return colors[Math.floor(Math.random() * colors.length)] ?? "#6f8cff";
 }
