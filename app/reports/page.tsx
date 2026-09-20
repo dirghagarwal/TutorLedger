@@ -1,3 +1,4 @@
+import { requireTeacherPage } from "@/lib/auth/page-guard";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import ReportsClient from "@/components/reports/ReportsClient";
@@ -16,6 +17,7 @@ import {
 export const dynamic = "force-dynamic";
 
 export default async function ReportsPage() {
+  await requireTeacherPage();
   const [students, attendanceRecords, payments, sessions] = await Promise.all([
     findStudents(),
     findAttendance(),
