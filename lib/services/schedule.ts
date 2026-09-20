@@ -1,4 +1,3 @@
-import { findSchedulesByStudent } from "@/lib/repositories/schedules";
 import { DayOfWeek, type Schedule } from "@/types/schedule";
 
 const dayOrder: readonly DayOfWeek[] = [
@@ -47,11 +46,6 @@ function sortSchedules(first: Schedule, second: Schedule): number {
   const dayDifference =
     dayOrder.indexOf(first.dayOfWeek) - dayOrder.indexOf(second.dayOfWeek);
   return dayDifference || toMinutes(first.startTime) - toMinutes(second.startTime);
-}
-
-export async function getSchedulesForStudent(studentId: string): Promise<Schedule[]> {
-  const records = await findSchedulesByStudent(studentId);
-  return records.filter((schedule) => schedule.active).sort(sortSchedules);
 }
 
 export function getTodaysClasses(
