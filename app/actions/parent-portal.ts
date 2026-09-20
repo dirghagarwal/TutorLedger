@@ -46,3 +46,15 @@ export async function revokeParentPortal(portalId: string) {
   });
   revalidatePath("/settings");
 }
+
+
+/** Backward-compatible action used by the student profile portal controls. */
+export async function revokeParentPortals(studentId: string) {
+  const teacher = await requireTeacher();
+  await rawPrisma.parentPortal.updateMany({
+    where: { studentId, teacherId: teacher.id, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  revalidatePath("/settings");
+  revalidatePath(`/students/${studentId}`);
+}
