@@ -8,6 +8,7 @@ import MonthlyClassTracker from "@/components/students/MonthlyClassTracker";
 import PaymentHistory from "@/components/students/PaymentHistory";
 import SessionTimeline from "@/components/students/SessionTimeline";
 import StudentProfileActions from "@/components/students/StudentProfileActions";
+import ParentPortalButton from "@/components/students/ParentPortalButton";
 import Topbar from "@/components/layout/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,12 +29,12 @@ import {
   formatTime,
   formatWeeklySchedule,
   getNextUpcomingClass,
-  getSchedulesForStudent,
   getTodaysClasses,
 } from "@/lib/services/schedule";
 import { findSessionNotesBySessionIds } from "@/lib/repositories/session-notes";
 import { findPaymentAllocationsBySessionIds, findPayments } from "@/lib/repositories/payments";
 import { FeeType } from "@/types/students";
+import { getSchedulesForStudent } from "@/lib/services/schedule-data";
 
 export const dynamic = "force-dynamic";
 
@@ -186,6 +187,8 @@ export default async function StudentProfilePage({
               </Detail>
             </CardContent>
           </Card>
+
+          <ParentPortalButton studentId={student.id} />
 
           <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_18rem]">
             <AttendanceTimeline records={studentAttendance} />

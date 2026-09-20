@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
-import { prisma } from "@/lib/db/prisma";
+import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import { createAttachment } from "@/lib/repositories/attachments";
 import { createSessionNote } from "@/lib/repositories/session-notes";
 import { ensureSessionExists, findSessionById, upsertSession } from "@/lib/repositories/sessions";
@@ -115,15 +115,15 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
     const studentId = session.studentId;
 
     // Prisma Transaction: Delete ONLY session-level records
-    await prisma.$transaction([
-      prisma.attendance.deleteMany({ where: { sessionId } }),
-      prisma.sessionNote.deleteMany({ where: { sessionId } }),
-      prisma.attachment.deleteMany({ where: { sessionId } }),
-      prisma.session.delete({ where: { id: sessionId } }),
+    await tenantPrisma.$transaction([
+      tenantPrisma.attendance.deleteMany({ where: { sessionId } }),
+      tenantPrisma.sessionNote.deleteMany({ where: { sessionId } }),
+      tenantPrisma.attachment.deleteMany({ where: { sessionId } }),
+      tenantPrisma.session.delete({ where: { id: sessionId } }),
     ]);
 
     // Safety Audit Check: Verify Student record is STILL intact
-    const studentCheck = await prisma.student.findUnique({ where: { id: studentId } });
+    const studentCheck = await tenantPrisma.student.findUnique({ where: { id: studentId } });
     if (!studentCheck) {
       throw new Error("CRITICAL SAFETY VIOLATION: Student record was affected during session delete!");
     }
@@ -159,7 +159,7 @@ export interface AddPastClassInput {
 
 export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok: true; sessionId: string } | { ok: false; error: string }> {
   try {
-    const student = await prisma.student.findUnique({ where: { id: input.studentId } });
+    const student = await tenantPrisma.student.findUnique({ where: { id: input.studentId } });
     if (!student) {
       return { ok: false, error: "Student record not found." };
     }
@@ -230,7 +230,7 @@ export async function markClassTakenFromProfile(
   input: MarkClassTakenInput
 ): Promise<{ ok: true; sessionId: string } | { ok: false; error: string }> {
   try {
-    const student = await prisma.student.findUnique({ where: { id: input.studentId } });
+    const student = await tenantPrisma.student.findUnique({ where: { id: input.studentId } });
     if (!student) {
       return { ok: false, error: "Student record not found." };
     }

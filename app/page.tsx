@@ -1,105 +1,39 @@
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import CommandBar from "@/components/workspace/CommandBar";
-import Stats from "@/components/workspace/Stats";
-import RightPanel from "@/components/layout/RightPanel";
-import TodayClasses, { type TodayClassItem } from "@/components/workspace/TodayClasses";
-import type { SessionView } from "@/components/layout/RightPanel";
-import { formatTime } from "@/lib/services/schedule";
-import { FeeType } from "@/types/students";
-import {
-  getAllSessions,
-  getNextSession,
-  getTodaysSessions,
-} from "@/lib/services/sessions";
-import { findStudents } from "@/lib/repositories/students";
-import { findAttendanceBySessionIds } from "@/lib/repositories/attendance";
-import { findPayments } from "@/lib/repositories/payments";
-import {
-  getRevenueThisMonth,
-  getTotalOutstandingBalance,
-} from "@/lib/services/payments";
 
 export const dynamic = "force-dynamic";
 
-export default async function Home() {
-  const students = await findStudents();
-  const studentNames = new Map(students.map((student) => [student.id, student.name]));
-  const allSessions = await getAllSessions();
-  const todaySessionRecords = await getTodaysSessions(allSessions);
-  const todaySessions: SessionView[] = todaySessionRecords.map(
-    (session) => ({
-      session,
-      studentName: studentNames.get(session.studentId) ?? "Unknown student",
-    })
-  );
-  const nextSession = await getNextSession(allSessions);
-  const nextSessionView = nextSession
-    ? {
-        session: nextSession,
-        studentName:
-          studentNames.get(nextSession.studentId) ?? "Unknown student",
-      }
-    : null;
-  const pendingFees = await getTotalOutstandingBalance(students);
-  const revenueThisMonth = await getRevenueThisMonth();
-  const [attendanceRecords, payments] = await Promise.all([
-    findAttendanceBySessionIds(todaySessionRecords.map((session) => session.id)),
-    findPayments(),
-  ]);
-  const attendanceBySession = new Map(attendanceRecords.map((record) => [record.sessionId, record]));
-  const todayClassItems: TodayClassItem[] = todaySessionRecords.map((session) => ({
-    session,
-    studentName: studentNames.get(session.studentId) ?? "Unknown student",
-    studentColor: students.find((student) => student.id === session.studentId)?.color ?? "var(--avatar-fallback)",
-    attendance: attendanceBySession.get(session.id) ?? null,
-    payments: payments.filter((payment) => payment.sessionId === session.id),
-    feeType: students.find((student) => student.id === session.studentId)?.feeType ?? FeeType.MONTHLY,
-  }));
-
+export default function Home() {
   return (
-    <main className="flex min-h-screen min-w-0 flex-col bg-background lg:flex-row">
+    <main className="min-h-screen bg-background text-foreground lg:flex">
       <Sidebar />
+      <section className="relative flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute left-1/2 top-[18%] h-[30rem] w-[42rem] -translate-x-1/2 rounded-full bg-blue-600/[0.045] blur-[120px]" />
+          <div className="absolute left-[20%] top-[52%] h-[20rem] w-[28rem] rounded-full bg-violet-500/[0.025] blur-[110px]" />
+        </div>
 
-      <section className="flex min-w-0 flex-1 flex-col">
         <Topbar />
 
-        <div className="p-4 sm:p-8">
-          <CommandBar />
-          <TodayClasses initialItems={todayClassItems} />
-          <Stats
-            cards={[
-              { title: "Students", value: String(students.length) },
-              { title: "Today's Sessions", value: String(todaySessions.length) },
-              {
-                title: "Next Session",
-                value: nextSessionView
-                  ? formatTime(nextSessionView.session.startTime)
-                  : "None",
-              },
-              {
-                title: "Pending Fees",
-                value: new Intl.NumberFormat("en-IN", {
-                  style: "currency",
-                  currency: "INR",
-                  maximumFractionDigits: 0,
-                }).format(pendingFees),
-              },
-              {
-                title: "Revenue This Month",
-                value: new Intl.NumberFormat("en-IN", {
-                  style: "currency",
-                  currency: "INR",
-                  maximumFractionDigits: 0,
-                }).format(revenueThisMonth),
-              },
-            ]}
-          />
+        <div className="relative flex flex-1 items-center justify-center px-5 pb-20 pt-8 sm:px-8">
+          <div className="w-full max-w-4xl -translate-y-8">
+            <div className="mb-7 text-center">
+              <div className="mx-auto mb-4 flex size-11 items-center justify-center rounded-2xl bg-white/[0.045] ring-1 ring-white/8">
+                <span className="text-sm font-semibold tracking-tight">TL</span>
+              </div>
+              <h1 className="text-3xl font-semibold tracking-[-0.03em] sm:text-4xl">How can I help?</h1>
+              <p className="mt-2 text-sm text-white/40">Record classes, payments, homework and more in plain language.</p>
+            </div>
+
+            <CommandBar minimal />
+
+            <p className="mt-4 text-center text-[11px] text-white/25">
+              Try: “Took Tanay’s class today” · “Aahan paid ₹2,000” · “Show unpaid classes”
+            </p>
+          </div>
         </div>
       </section>
-
-      <RightPanel className="hidden xl:block" nextSession={nextSessionView} todaySessions={todaySessions} />
-      <RightPanel className="w-full border-t border-l-0 p-4 xl:hidden sm:p-6" nextSession={nextSessionView} todaySessions={todaySessions} />
     </main>
   );
 }
