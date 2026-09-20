@@ -16,6 +16,26 @@ model Teacher {
   students      Student[]
   sessions      TeacherSession[]
   parentPortals ParentPortal[]
+  auditLogs     AuditLog[]
+}
+
+model AuditLog {
+  id          String   @id
+  teacherId   String
+  action      String
+  entityType  String?
+  entityId    String?
+  studentId   String?
+  sessionId   String?
+  resolvedDate String?
+  userPrompt  String
+  result      String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  @@index([teacherId, createdAt])
+  @@index([teacherId, action, createdAt])
+  @@index([studentId, createdAt])
 }
 
 model TeacherSession {
