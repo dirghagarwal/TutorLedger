@@ -1,8 +1,3 @@
-import { findSchedules } from "@/lib/repositories/schedules";
-import {
-  findSessionById as findStoredSessionById,
-  findSessions as findStoredSessions,
-} from "@/lib/repositories/sessions";
 import { DayOfWeek, type Schedule } from "@/types/schedule";
 import { SessionStatus, type Session } from "@/types/session";
 
@@ -78,37 +73,9 @@ export function generateSessionsForCurrentMonth(
   return generateSessionsForMonth(date.getFullYear(), date.getMonth(), recurringSchedules);
 }
 
-export async function getAllSessions(
-  date = new Date(),
-  recurringSchedules?: readonly Schedule[]
-): Promise<Session[]> {
-  const [storedSessions, activeSchedules] = await Promise.all([
-    findStoredSessions(),
-    recurringSchedules ? Promise.resolve([...recurringSchedules]) : findSchedules(),
-  ]);
-  const combined = [
-    ...generateSessionsForMonth(date.getFullYear(), date.getMonth(), activeSchedules),
-    ...storedSessions,
-  ];
-  const uniqueSessions = new Map(
-    combined.map((session) => [`${session.scheduleId}:${session.date}`, session])
-  );
-  return [...uniqueSessions.values()].sort(sortSessions);
-}
-
 export interface MonthCalendarDay {
   date: string | null;
   day: number | null;
-}
-
-export async function getSessionsForMonth(
-  date = new Date(),
-  recurringSchedules?: readonly Schedule[]
-): Promise<Session[]> {
-  const monthPrefix = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-  return (await getAllSessions(date, recurringSchedules)).filter((session) =>
-    session.date.startsWith(monthPrefix)
-  );
 }
 
 export function groupSessionsByDate(
