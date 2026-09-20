@@ -78,14 +78,6 @@ export async function processAiCommand(
   }
 
   const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
-    return {
-      ok: false,
-      message: "GEMINI_API_KEY is not configured in server environment.",
-      activeContext,
-    };
-  }
-
   const enrolledStudents = await findStudents();
   const enrolledNamesList = enrolledStudents.map((s) => s.name);
   const todayKolkataDate = getTodayDateKey();
@@ -93,9 +85,10 @@ export async function processAiCommand(
   let semanticOutput: AiSemanticOutput;
   const modelName = process.env.GEMINI_MODEL?.trim() || "gemini-3.8-flash";
 
-  try {
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
+  if (apiKey) {
+    try {
+      const genAI = new GoogleGenerativeAI(apiKey);
+      const model = genAI.getGenerativeModel({
       model: modelName,
       generationConfig: {
         responseMimeType: "application/json",
@@ -158,12 +151,16 @@ NATURAL LANGUAGE & CONVERSATIONAL UNDERSTANDING RULES:
       { role: "user", parts: [{ text: `User request: "${trimmed}"` }] },
     ];
 
-    const response = await model.generateContent({ contents });
-    const rawJson = JSON.parse(response.response.text());
-    semanticOutput = aiSemanticOutputSchema.parse(rawJson);
-  } catch {
+      const response = await model.generateContent({ contents });
+      const rawJson = JSON.parse(response.response.text());
+      semanticOutput = aiSemanticOutputSchema.parse(rawJson);
+    } catch {
+      semanticOutput = parsePromptFallback(trimmed, enrolledNamesList, history);
+      // Deterministic fallback keeps core actions usable if Gemini is temporarily unavailable.
+    }
+  } else {
     semanticOutput = parsePromptFallback(trimmed, enrolledNamesList, history);
-    // Deterministic fallback keeps core actions usable if Gemini is temporarily unavailable.
+    // Missing Gemini credentials must not disable the deterministic core command path.
   }
 
   // Handle Action Intents using Context Priority Architecture
@@ -1127,7 +1124,7 @@ function parsePromptFallback(
       studentReference: matchedName,
       amount,
       method: PaymentMethod.UPI,
-      dateReference: dateReference || "today",
+      dateReference,
     };
   }
 
