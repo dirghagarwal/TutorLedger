@@ -9,7 +9,6 @@ import PaymentHistory from "@/components/students/PaymentHistory";
 import SessionTimeline from "@/components/students/SessionTimeline";
 import StudentProfileActions from "@/components/students/StudentProfileActions";
 import ParentPortalButton from "@/components/students/ParentPortalButton";
-import ParentPortalButton from "@/components/students/ParentPortalButton";
 import Topbar from "@/components/layout/Topbar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
