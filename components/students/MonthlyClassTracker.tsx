@@ -378,7 +378,7 @@ export default function MonthlyClassTracker({
                         onClick={() => handleMarkTaken(item)}
                         className="h-8 text-xs bg-success text-success-foreground hover:bg-success/90"
                       >
-                        {isPending ? <Loader2 className="size-3 animate-spin" /> : "Mark Taken"}
+                        {isPending ? <Loader2 className="size-3 animate-spin" /> : "Record class"}
                       </Button>
                     )}
 

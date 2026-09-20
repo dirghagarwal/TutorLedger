@@ -9,17 +9,20 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/components/ui/toast";
 import { AttendanceStatus } from "@/types/attendance";
+import type { Schedule } from "@/types/schedule";
+import { getTodayDateKey } from "@/lib/utils/date";
 import type { Student } from "@/types/students";
 
-export default function AddPastClassModal({ student }: { student: Student }) {
+export default function AddPastClassModal({ student, schedules = [] }: { student: Student; schedules?: Schedule[] }) {
   const router = useRouter();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  const [date, setDate] = useState("2026-08-05");
-  const [startTime, setStartTime] = useState("10:30");
-  const [endTime, setEndTime] = useState("11:30");
+  const firstSchedule = schedules.find((schedule) => schedule.active);
+  const [date, setDate] = useState(() => getTodayDateKey());
+  const [startTime, setStartTime] = useState(firstSchedule?.startTime ?? "16:30");
+  const [endTime, setEndTime] = useState(firstSchedule?.endTime ?? "17:30");
   const [status, setStatus] = useState<AttendanceStatus>(AttendanceStatus.PRESENT);
   const [topic, setTopic] = useState("");
   const [classwork, setClasswork] = useState("");
@@ -37,6 +40,7 @@ export default function AddPastClassModal({ student }: { student: Student }) {
     startTransition(async () => {
       const res = await addPastClassAction({
         studentId: student.id,
+        scheduleId: firstSchedule?.id,
         date,
         startTime,
         endTime,

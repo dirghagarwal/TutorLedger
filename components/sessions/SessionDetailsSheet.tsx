@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { ArrowLeft, Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { addSessionAttachment, addSessionNote } from "@/app/actions/sessions";
+import EditSessionDialog from "@/components/sessions/EditSessionDialog";
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
 import PaymentDialog, { type PaymentDraft } from "@/components/workspace/PaymentDialog";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +61,7 @@ function fileTypeFromName(name: string): AttachmentType {
 export default function SessionDetailsSheet({ open, onOpenChange, record }: Readonly<SessionDetailsSheetProps>) {
   const [isPending, startTransition] = useTransition();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [note, setNote] = useState({ topic: "", classwork: "", homework: "", remarks: "" });
 
@@ -160,6 +163,18 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
       <SheetContent side="bottom" className="h-[90dvh] overflow-y-auto rounded-t-3xl border-border-strong bg-surface p-0">
         <div className="mx-auto w-full max-w-4xl px-4 pb-8 pt-4 sm:px-6">
           <SheetHeader className="px-0 pb-4">
+            <div className="mb-2 flex items-center justify-between gap-2 pr-10">
+              <Button
+                type="button"
+                size="sm"
+                variant="ghost"
+                onClick={() => onOpenChange(false)}
+                className="text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="size-4" />
+                Back
+              </Button>
+            </div>
             <SheetTitle className="flex items-center gap-3 text-foreground">
               <span className="flex size-10 items-center justify-center rounded-2xl text-sm font-semibold text-foreground" style={{ backgroundColor: record.studentColor }}>
                 {record.studentName.split(/\s+/).slice(0, 2).map((part) => part[0] ?? "").join("").toUpperCase()}
@@ -173,6 +188,18 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
                 </span>
               </span>
             </SheetTitle>
+            <div className="mt-3 flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setEditOpen(true)}
+                disabled={isPending}
+              >
+                <Pencil className="size-4" />
+                Edit class
+              </Button>
+            </div>
             <SheetDescription>
               Session details, teaching record, attachments, and payment history.
             </SheetDescription>
@@ -298,6 +325,15 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
           />
         )}
       </SheetContent>
+
+      <EditSessionDialog
+        key={record.session.id}
+        attendance={record.attendance}
+        onOpenChange={setEditOpen}
+        onSaved={() => router.refresh()}
+        open={editOpen}
+        session={record.session}
+      />
     </Sheet>
   );
 }

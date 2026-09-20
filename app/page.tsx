@@ -1,4 +1,6 @@
 import { requireTeacherPage } from "@/lib/auth/page-guard";
+import Link from "next/link";
+import { CalendarPlus } from "lucide-react";
 import Sidebar from "@/components/layout/Sidebar";
 import Topbar from "@/components/layout/Topbar";
 import CommandBar from "@/components/workspace/CommandBar";
@@ -30,6 +32,22 @@ export default async function Home() {
             </div>
 
             <CommandBar minimal />
+
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+              <Link
+                href="/record"
+                className="inline-flex h-10 items-center gap-2 rounded-xl border border-primary/25 bg-primary/10 px-4 text-sm font-medium text-primary transition hover:bg-primary/15"
+              >
+                <CalendarPlus className="size-4" />
+                Record class manually
+              </Link>
+              <Link
+                href="/students"
+                className="inline-flex h-10 items-center rounded-xl border border-white/10 bg-white/[0.035] px-4 text-sm font-medium text-white/70 transition hover:bg-white/[0.07] hover:text-white"
+              >
+                Manage students
+              </Link>
+            </div>
 
             <p className="mt-4 text-center text-[11px] text-white/25">
               Try: “Took a class today” · “Received ₹2,000” · “Show unpaid classes”
