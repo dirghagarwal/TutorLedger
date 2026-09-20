@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 import { PrismaClient } from "@prisma/client";
 import { getRequestTeacherId } from "@/lib/auth/session";
