@@ -1,9 +1,11 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
+import { Pencil } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { addSessionAttachment, addSessionNote } from "@/app/actions/sessions";
+import EditSessionDialog from "@/components/sessions/EditSessionDialog";
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
 import PaymentDialog, { type PaymentDraft } from "@/components/workspace/PaymentDialog";
 import { Badge } from "@/components/ui/badge";
@@ -59,6 +61,7 @@ function fileTypeFromName(name: string): AttachmentType {
 export default function SessionDetailsSheet({ open, onOpenChange, record }: Readonly<SessionDetailsSheetProps>) {
   const [isPending, startTransition] = useTransition();
   const [paymentOpen, setPaymentOpen] = useState(false);
+  const [editOpen, setEditOpen] = useState(false);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [note, setNote] = useState({ topic: "", classwork: "", homework: "", remarks: "" });
 
@@ -173,6 +176,18 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
                 </span>
               </span>
             </SheetTitle>
+            <div className="mt-3 flex justify-end">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() => setEditOpen(true)}
+                disabled={isPending}
+              >
+                <Pencil className="size-4" />
+                Edit class
+              </Button>
+            </div>
             <SheetDescription>
               Session details, teaching record, attachments, and payment history.
             </SheetDescription>
@@ -298,6 +313,14 @@ export default function SessionDetailsSheet({ open, onOpenChange, record }: Read
           />
         )}
       </SheetContent>
+
+      <EditSessionDialog
+        attendance={record.attendance}
+        onOpenChange={setEditOpen}
+        onSaved={() => router.refresh()}
+        open={editOpen}
+        session={record.session}
+      />
     </Sheet>
   );
 }
