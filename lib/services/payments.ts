@@ -170,20 +170,30 @@ export async function getRevenueByStudent(
 
 export async function getPendingStudents(
   allStudents?: readonly Student[],
-  allPayments?: readonly Payment[]
+  allPayments?: readonly Payment[],
+  allSessions?: readonly Session[],
+  allAttendance?: readonly Attendance[]
 ): Promise<Student[]> {
-  const [studentRecords, paymentRecords] = await Promise.all([
+  const [studentRecords, paymentRecords, sessionRecords, attendanceRecords] = await Promise.all([
     allStudents ? Promise.resolve([...allStudents]) : findStudents(),
     resolvePayments(allPayments),
+    allSessions ? Promise.resolve([...allSessions]) : findSessions(),
+    allAttendance ? Promise.resolve([...allAttendance]) : findAttendance(),
   ]);
-  return studentRecords.filter(
-    (student) =>
-      paymentRecords.some(
-        (payment) =>
-          payment.studentId === student.id &&
-          payment.status === PaymentStatus.PENDING
+
+  const balances = await Promise.all(
+    studentRecords.map(async (student) =>
+      getOutstandingBalance(
+        student.id,
+        paymentRecords,
+        studentRecords,
+        sessionRecords,
+        attendanceRecords
       )
+    )
   );
+
+  return studentRecords.filter((student, index) => (balances[index] ?? 0) > 0);
 }
 
 export async function getLifetimePayments(
