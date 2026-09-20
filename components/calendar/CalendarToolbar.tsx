@@ -1,6 +1,7 @@
 "use client";
 
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, CalendarPlus } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 
@@ -26,15 +27,24 @@ export default function CalendarToolbar({
           </h1>
         </div>
       </div>
-      <Button
-        className="border-input bg-card text-secondary-foreground hover:bg-muted"
-        size="sm"
-        type="button"
-        variant="outline"
-        onClick={onToday}
-      >
-        Today
-      </Button>
+      <div className="flex items-center gap-2">
+        <Link
+          href="/record"
+          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-primary/25 bg-primary/10 px-2.5 text-xs font-medium text-primary transition hover:bg-primary/15"
+        >
+          <CalendarPlus className="size-3.5" />
+          Record class
+        </Link>
+        <Button
+          className="border-input bg-card text-secondary-foreground hover:bg-muted"
+          size="sm"
+          type="button"
+          variant="outline"
+          onClick={onToday}
+        >
+          Today
+        </Button>
+      </div>
     </div>
   );
 }
