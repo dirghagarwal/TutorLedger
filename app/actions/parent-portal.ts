@@ -190,7 +190,23 @@ export async function studentRescheduleSessionAction(
   }
 }
 
-type StudentCancellationTx = Pick<Prisma.TransactionClient, "paymentAllocation" | "session" | "attendance" | "auditLog">;
+type StudentCancellationTx = {
+  paymentAllocation: {
+    count(args: { where: { sessionId: string; teacherId: string } }): Promise<number>;
+  };
+  session: {
+    update(args: { where: { id: string }; data: { status: string } }): Promise<unknown>;
+  };
+  attendance: {
+    updateMany(args: {
+      where: { sessionId: string; teacherId: string };
+      data: { status: string };
+    }): Promise<unknown>;
+  };
+  auditLog: {
+    create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  };
+};
 
 export async function executeStudentCancellation(
   tx: StudentCancellationTx,
