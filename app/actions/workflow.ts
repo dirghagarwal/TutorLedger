@@ -172,9 +172,12 @@ export async function updateClassStatus(input: unknown): Promise<UpdateStatusRes
 
 export async function updatePayment(input: unknown): Promise<PaymentResult> {
   try {
+    const raw = input as Record<string, unknown>;
+    const paymentId = typeof raw.id === "string" ? raw.id : "";
+    if (!paymentId) return { ok: false, error: "Payment id is required." };
     const values = paymentInputSchema.parse(input);
     const payment = await updatePaymentWithAllocations({
-      id: values.id,
+      id: paymentId,
       studentId: values.studentId,
       sessionId: values.sessionId ?? null,
       amount: values.amount,
