@@ -315,6 +315,8 @@ export async function updateSessionAction(
       return { ok: false, error: "Session record not found." };
     }
 
+    const teacher = await requireTeacher();
+
     const conflictingSession = await tenantPrisma.session.findFirst({
       where: {
         studentId: session.studentId,
