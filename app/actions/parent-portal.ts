@@ -39,7 +39,7 @@ export async function createParentPortal(studentId: string, showFees = false) {
   });
 
   revalidatePath("/settings");
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://tutor-ledger-sigma.vercel.app";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "https://tutor-ledger-tutor-ledger.vercel.app";
   return { url: `${origin}/portal/${token}`, expiresAt: expiresAt.toISOString() };
 }
 
