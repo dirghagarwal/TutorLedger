@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 
 import { upsertAttendance } from "@/lib/repositories/attendance";
-import { createPaymentWithAllocations, findPaymentById } from "@/lib/repositories/payments";
+import { createPaymentWithAllocations, findPaymentById, updatePaymentWithAllocations } from "@/lib/repositories/payments";
 import {
   ensureSessionExists,
   findSessionById,
@@ -167,6 +167,30 @@ export async function updateClassStatus(input: unknown): Promise<UpdateStatusRes
     return { ok: true, session: updatedSession, warning };
   } catch (error) {
     return { ok: false, error: errorMessage(error, "Unable to update class status.") };
+  }
+}
+
+export async function updatePayment(input: unknown): Promise<PaymentResult> {
+  try {
+    const values = paymentInputSchema.parse(input);
+    const payment = await updatePaymentWithAllocations({
+      id: values.id,
+      studentId: values.studentId,
+      sessionId: values.sessionId ?? null,
+      amount: values.amount,
+      date: values.date,
+      method: values.method,
+      status: values.status as PaymentStatus,
+      billingPeriod: values.billingPeriod,
+      notes: values.notes,
+    });
+    const verified = await findPaymentById(payment.id);
+    if (!verified) return { ok: false, error: "Payment updated, but database verification failed." };
+    revalidateWorkflow();
+    safeRevalidate(`/students/${payment.studentId}`);
+    return { ok: true, payment: verified };
+  } catch (error) {
+    return { ok: false, error: errorMessage(error, "Unable to update payment.") };
   }
 }
 
