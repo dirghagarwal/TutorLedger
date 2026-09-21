@@ -204,26 +204,25 @@ export async function studentCancelSessionAction(
       return { ok: false, error: "Session is already cancelled." };
     }
 
-    const allocationCount = await rawPrisma.paymentAllocation.count({
-      where: { sessionId: session.id, teacherId: portal.teacherId },
-    });
-    if (allocationCount > 0) {
-      return {
-        ok: false,
-        error: "Cannot cancel a class with allocated payments. Please contact your tutor.",
-      };
-    }
+    await rawPrisma.$transaction(async (tx) => {
+      // Keep the allocation invariant inside the same transaction as cancellation.
+      // This prevents a concurrent payment allocation from racing the pre-check.
+      const allocationCount = await tx.paymentAllocation.count({
+        where: { sessionId: session.id, teacherId: portal.teacherId },
+      });
+      if (allocationCount > 0) {
+        throw new Error("CANNOT_CANCEL_ALLOCATED_SESSION");
+      }
 
-    await rawPrisma.$transaction([
-      rawPrisma.session.update({
+      await tx.session.update({
         where: { id: session.id },
         data: { status: "CANCELLED" },
-      }),
-      rawPrisma.attendance.updateMany({
+      });
+      await tx.attendance.updateMany({
         where: { sessionId: session.id, teacherId: portal.teacherId },
         data: { status: "CANCELLED" },
-      }),
-      rawPrisma.auditLog.create({
+      });
+      await tx.auditLog.create({
         data: {
           id: crypto.randomUUID(),
           teacherId: portal.teacherId,
@@ -231,12 +230,16 @@ export async function studentCancelSessionAction(
           sessionId: session.id,
           action: "STUDENT_SESSION_CANCELLED",
           userPrompt: "Cancellation submitted via Student Portal",
-          result: `Session ${session.id} on ${session.date} cancelled by student.`,
+          result: "Session " + session.id + " on " + session.date + " cancelled by student.",
           resolvedDate: session.date,
         },
-      }),
-    ]);
-
+      });
+    }).catch((error) => {
+      if (error instanceof Error && error.message === "CANNOT_CANCEL_ALLOCATED_SESSION") {
+        throw new Error("Cannot cancel a class with allocated payments. Please contact your tutor.");
+      }
+      throw error;
+    });
     revalidatePath("/portal");
     return { ok: true };
   } catch (error) {
