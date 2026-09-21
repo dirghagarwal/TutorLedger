@@ -248,7 +248,7 @@ export async function studentCancelSessionAction(
       return { ok: false, error: "Session is already cancelled." };
     }
 
-    await rawPrisma.$transaction(async (tx) => {
+    await rawPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await executeStudentCancellation(tx, {
         sessionId: session.id,
         studentId: portal.studentId,
