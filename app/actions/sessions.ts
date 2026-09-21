@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { Prisma } from "@prisma/client";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
+import { requireTeacher } from "@/lib/auth/session";
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import { createAttachment } from "@/lib/repositories/attachments";
 import { createSessionNote } from "@/lib/repositories/session-notes";
@@ -121,6 +122,7 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
     }
 
     const studentId = session.studentId;
+    const teacher = await requireTeacher();
 
     // Prisma Transaction: verify allocation invariant and delete ONLY session-level records
     await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
@@ -365,7 +367,7 @@ export async function updateSessionAction(
           data: {
             id: "attendance-" + session.id,
             sessionId: session.id,
-            teacherId: session.teacherId,
+            teacherId: teacher.id,
             date: values.date,
             startTime: values.startTime,
             endTime: values.endTime,
