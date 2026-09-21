@@ -117,3 +117,5 @@ Rules:
           $headers = @{ Authorization = "Bearer $env:GH_TOKEN"; Accept = "application/vnd.github+json"; "X-GitHub-Api-Version" = "2026-03-10" }
           $payload = @{ body = "Antigravity bridge run finished. Check the Actions run and generated PR for details." } | ConvertTo-Json
           Invoke-RestMethod -Method Post -Uri "https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments" -Headers $headers -ContentType "application/json" -Body $payload | Out-Null
+
+# bootstrap-trigger-test
