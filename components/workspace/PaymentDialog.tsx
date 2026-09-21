@@ -23,15 +23,19 @@ interface PaymentDialogProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (draft: PaymentDraft) => Promise<boolean>;
   defaultBillingPeriod?: BillingPeriod;
+  initialDraft?: Partial<PaymentDraft>;
+  title?: string;
+  description?: string;
 }
 
-export default function PaymentDialog({ open, studentName, onOpenChange, onSubmit, defaultBillingPeriod = BillingPeriod.MONTHLY }: Readonly<PaymentDialogProps>) {
-  const [amount, setAmount] = useState("");
-  const [date, setDate] = useState(() => getTodayDateKey());
-  const [method, setMethod] = useState<PaymentMethod>(PaymentMethod.UPI);
-  const [status, setStatus] = useState<PaymentStatus>(PaymentStatus.PAID);
-  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(defaultBillingPeriod);
-  const [notes, setNotes] = useState("");
+export default function PaymentDialog({ open, studentName, onOpenChange, onSubmit, defaultBillingPeriod = BillingPeriod.MONTHLY, initialDraft, title = "Record payment", description }: Readonly<PaymentDialogProps>) {
+  const isEditing = Boolean(initialDraft);
+  const [amount, setAmount] = useState(() => initialDraft?.amount?.toString() ?? "");
+  const [date, setDate] = useState(() => initialDraft?.date ?? getTodayDateKey());
+  const [method, setMethod] = useState<PaymentMethod>(initialDraft?.method ?? PaymentMethod.UPI);
+  const [status, setStatus] = useState<PaymentStatus>(initialDraft?.status ?? PaymentStatus.PAID);
+  const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>(initialDraft?.billingPeriod ?? defaultBillingPeriod);
+  const [notes, setNotes] = useState(initialDraft?.notes ?? "");
   const [saving, setSaving] = useState(false);
 
   const submit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -49,7 +53,7 @@ export default function PaymentDialog({ open, studentName, onOpenChange, onSubmi
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[calc(100%-1rem)] border-border-strong bg-surface text-foreground sm:max-w-lg">
-        <DialogHeader><DialogTitle>Record payment</DialogTitle><DialogDescription>Record a payment from {studentName}.</DialogDescription></DialogHeader>
+        <DialogHeader><DialogTitle>{title}</DialogTitle><DialogDescription>{description ?? `Record a payment from ${studentName}.`}</DialogDescription></DialogHeader>
         <form className="grid gap-4" onSubmit={(event) => void submit(event)}>
           <div className="grid gap-4 sm:grid-cols-2"><label htmlFor="payment-amount" className="grid gap-1.5 text-sm font-medium">Amount<Input id="payment-amount" min={1} required type="number" value={amount} onChange={(event) => setAmount(event.target.value)} /></label><label className="grid gap-1.5 text-sm font-medium">Payment date<Input required type="date" value={date} onChange={(event) => setDate(event.target.value)} /></label></div>
           <div className="grid gap-4 sm:grid-cols-3">
@@ -58,7 +62,7 @@ export default function PaymentDialog({ open, studentName, onOpenChange, onSubmi
             <label htmlFor="payment-billing" className="grid gap-1.5 text-sm font-medium">Billing<select id="payment-billing" className="min-h-11 rounded-lg border border-input bg-transparent px-2 text-sm sm:min-h-8" value={billingPeriod} onChange={(event) => setBillingPeriod(event.target.value as BillingPeriod)}><option value={BillingPeriod.MONTHLY}>Monthly</option><option value={BillingPeriod.CLASSWISE}>Class-wise</option></select></label>
           </div>
           <label htmlFor="payment-notes" className="grid gap-1.5 text-sm font-medium">Notes<textarea id="payment-notes" className="min-h-20 rounded-lg border border-input bg-transparent p-2 text-sm outline-none focus-visible:ring-3 focus-visible:ring-ring/50" value={notes} onChange={(event) => setNotes(event.target.value)} /></label>
-          <DialogFooter className="-mx-4 -mb-4"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={saving} type="submit">{saving ? "Saving…" : "Record payment"}</Button></DialogFooter>
+          <DialogFooter className="-mx-4 -mb-4"><Button type="button" variant="ghost" onClick={() => onOpenChange(false)}>Cancel</Button><Button disabled={saving} type="submit">{saving ? "Saving…" : isEditing ? "Save changes" : "Record payment"}</Button></DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
