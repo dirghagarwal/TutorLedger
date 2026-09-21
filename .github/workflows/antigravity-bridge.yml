@@ -3,6 +3,8 @@ name: Antigravity Bridge
 on:
   issue_comment:
     types: [created]
+  push:
+    branches: [antigravity/trigger-issue17]
 
 permissions:
   contents: write
@@ -16,9 +18,7 @@ concurrency:
 jobs:
   run-antigravity:
     if: >
-      github.event.issue.pull_request == null &&
-      github.actor == github.repository_owner &&
-      startsWith(github.event.comment.body, '/agy ')
+      github.event_name == 'push' || (github.event.issue.pull_request == null && github.actor == github.repository_owner && startsWith(github.event.comment.body, '/agy '))
     runs-on: [self-hosted, Windows, X64, antigravity]
     timeout-minutes: 120
 
@@ -39,15 +39,15 @@ jobs:
       - name: Create isolated work branch
         shell: pwsh
         run: |
-          $branch = "antigravity/issue-${{ github.event.issue.number }}-run-${{ github.run_id }}"
+          $branch = "antigravity/issue-17-run-${{ github.run_id }}"
           "AGY_BRANCH=$branch" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8
           git switch -c $branch
 
       - name: Run Antigravity
         shell: pwsh
         env:
-          AGY_REQUEST: ${{ github.event.comment.body }}
-          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          AGY_REQUEST: /agy Audit and implement the full consolidated scope in Issue #17. First critically review the architecture and identify safer or simpler alternatives for teacher isolation, student authentication, session cancellation, attachments, billing integrity, and migrations. Then implement the agreed production-quality approach in one branch/PR. Run TypeScript, ESLint, tests, and production build. Do not deploy or mutate production data. Never expose secrets.
+          ISSUE_NUMBER: 17
         run: |
           if (-not (Get-Command agy -ErrorAction SilentlyContinue)) {
             throw "Antigravity CLI (agy) is not installed or is not on PATH."
