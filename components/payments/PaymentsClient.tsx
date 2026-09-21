@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { IndianRupee, Plus, Wallet, Search } from "lucide-react";
+import { IndianRupee, Plus, Wallet, Search, Pencil } from "lucide-react";
 
 import PaymentDialog, { type PaymentDraft } from "@/components/workspace/PaymentDialog";
-import { recordPayment } from "@/app/actions/workflow";
+import { recordPayment, updatePayment } from "@/app/actions/workflow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,6 +49,7 @@ export default function PaymentsClient({
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [selectedStudentForPayment, setSelectedStudentForPayment] = useState<Student | null>(null);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
 
   const studentNameMap = useMemo(
     () => new Map(students.map((s) => [s.id, s.name])),
@@ -225,13 +226,13 @@ export default function PaymentsClient({
                   <th className="px-4 py-3">Method</th>
                   <th className="px-4 py-3">Period</th>
                   <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">Notes</th>
+                  <th className="px-4 py-3">Notes</th>\n                  <th className="px-4 py-3 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border/40">
                 {filteredPayments.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">
+                    <td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">
                       No payments match the filters.
                     </td>
                   </tr>
@@ -260,8 +261,20 @@ export default function PaymentsClient({
                           {payment.status}
                         </Badge>
                       </td>
-                      <td className="px-4 py-3 text-xs text-muted-foreground max-w-xs truncate">
+                      <td className="max-w-xs truncate px-4 py-3 text-xs text-muted-foreground">
                         {payment.notes || "—"}
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          aria-label={`Edit payment for ${studentNameMap.get(payment.studentId) ?? "student"}`}
+                          title="Edit transaction"
+                          onClick={() => setEditingPayment(payment)}
+                        >
+                          <Pencil className="size-4" />
+                          <span className="hidden sm:inline">Edit</span>
+                        </Button>
                       </td>
                     </tr>
                   ))
@@ -271,6 +284,27 @@ export default function PaymentsClient({
           </div>
         </CardContent>
       </Card>
+
+      {editingPayment && (
+        <PaymentDialog
+          key={editingPayment.id}
+          open={Boolean(editingPayment)}
+          studentName={studentNameMap.get(editingPayment.studentId) ?? "Student"}
+          onOpenChange={(open) => { if (!open) setEditingPayment(null); }}
+          onSubmit={handlePaymentEdit}
+          defaultBillingPeriod={editingPayment.billingPeriod}
+          initialDraft={{
+            amount: editingPayment.amount,
+            date: editingPayment.date,
+            method: editingPayment.method,
+            status: editingPayment.status,
+            billingPeriod: editingPayment.billingPeriod,
+            notes: editingPayment.notes,
+          }}
+          title="Edit transaction"
+          description="Update this payment record. Student ownership cannot be changed."
+        />
+      )}
 
       {/* Record Payment Dialog */}
       {selectedStudentForPayment && (
