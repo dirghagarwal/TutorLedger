@@ -161,3 +161,19 @@ export async function findPaymentAllocationsBySessionIds(sessionIds: string[]): 
   });
   return records.map(toPaymentAllocation);
 }
+
+export async function updatePaymentWithAllocations(input: Payment): Promise<Payment> {
+  const teacherId = await getRequestTeacherId();
+  if (!teacherId) throw new Error("UNAUTHENTICATED");
+  const record = await tenantPrisma.$transaction(async (tx: any) => {
+    const existing = await tx.payment.findUnique({ where: { id: input.id, teacherId } });
+    if (!existing) throw new Error("Payment not found.");
+    if (existing.studentId !== input.studentId) throw new Error("Payment student cannot be changed.");
+    const allocations = await tx.paymentAllocation.findMany({ where: { paymentId: input.id, teacherId }, select: { amount: true } });
+    if (allocations.length > 0 && existing.amount !== input.amount) {
+      throw new Error("Amount cannot be changed while this payment has class allocations. Edit the allocations first.");
+    }
+    return tx.payment.update({ where: { id: input.id, teacherId }, data: { amount: input.amount, date: input.date, method: input.method, status: input.status, billingPeriod: input.billingPeriod, notes: input.notes } });
+  });
+  return toPayment(record);
+}
