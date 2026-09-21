@@ -60,13 +60,39 @@ export async function ensureSessionExists(input: EnsureSessionInput): Promise<Se
   let endTime = input.endTime ?? "17:30";
 
   if (!scheduleId) {
-    const schedules = await tenantPrisma.schedule.findMany({ where: { studentId: input.studentId, active: true }, orderBy: { startTime: "asc" } });
+    const schedules = await tenantPrisma.schedule.findMany({
+      where: { studentId: input.studentId, active: true },
+      orderBy: { startTime: "asc" },
+    });
     if (schedules.length > 0 && schedules[0]) {
       scheduleId = schedules[0].id;
-      startTime = schedules[0].startTime;
-      endTime = schedules[0].endTime;
+      if (!input.startTime) startTime = schedules[0].startTime;
+      if (!input.endTime) endTime = schedules[0].endTime;
     } else {
-      scheduleId = `sch-${input.studentId}`;
+      const adhocId = `sch-adhoc-${input.studentId}`;
+      const existingAdhoc = await tenantPrisma.schedule.findUnique({
+        where: { id: adhocId },
+      });
+      if (existingAdhoc) {
+        scheduleId = existingAdhoc.id;
+      } else {
+        const student = await tenantPrisma.student.findUnique({
+          where: { id: input.studentId },
+          select: { subject: true },
+        });
+        const createdAdhoc = await tenantPrisma.schedule.create({
+          data: {
+            id: adhocId,
+            studentId: input.studentId,
+            dayOfWeek: "MONDAY",
+            startTime: "00:00",
+            endTime: "00:00",
+            subject: student?.subject || "Ad-hoc Tuition",
+            active: false,
+          } as never,
+        });
+        scheduleId = createdAdhoc.id;
+      }
     }
   }
 

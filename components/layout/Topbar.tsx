@@ -41,10 +41,12 @@ export default function Topbar() {
       <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
         <Link
           href="/record"
-          className="hidden h-10 items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-3 text-sm font-medium text-primary transition hover:bg-primary/15 sm:inline-flex"
+          aria-label="Record class"
+          title="Record class"
+          className="flex h-10 items-center gap-1.5 rounded-xl border border-primary/25 bg-primary/10 px-2.5 sm:px-3 text-xs sm:text-sm font-medium text-primary transition hover:bg-primary/15"
         >
           <Plus className="size-4" />
-          Record class
+          <span className="inline">Record class</span>
         </Link>
 
         <AppLauncher />

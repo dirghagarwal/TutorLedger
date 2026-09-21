@@ -1,29 +1,38 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { z } from "zod";
 
+import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import {
   createSchedule as repoCreateSchedule,
   deleteSchedule as repoDeleteSchedule,
   updateSchedule as repoUpdateSchedule,
 } from "@/lib/repositories/schedules";
-import { DayOfWeek } from "@/types/schedule";
-
-const scheduleInputSchema = z.object({
-  studentId: z.string().min(1, "Student ID is required"),
-  dayOfWeek: z.nativeEnum(DayOfWeek),
-  startTime: z.string().regex(/^\d{2}:\d{2}$/, "Start time format must be HH:MM"),
-  endTime: z.string().regex(/^\d{2}:\d{2}$/, "End time format must be HH:MM"),
-  subject: z.string().trim().min(1, "Subject is required"),
-  active: z.boolean().optional().default(true),
-});
+import { scheduleInputSchema } from "@/lib/validations/schedule";
 
 export async function addScheduleAction(
   input: unknown
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
     const values = scheduleInputSchema.parse(input);
+
+    const existingDuplicate = await tenantPrisma.schedule.findFirst({
+      where: {
+        studentId: values.studentId,
+        dayOfWeek: values.dayOfWeek,
+        startTime: values.startTime,
+        active: true,
+      },
+      select: { id: true },
+    });
+
+    if (existingDuplicate) {
+      return {
+        ok: false,
+        error: "An active schedule slot for this student at that day and start time already exists.",
+      };
+    }
+
     await repoCreateSchedule(values);
 
     revalidatePath("/students");
@@ -44,7 +53,26 @@ export async function editScheduleAction(
   input: unknown
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const values = scheduleInputSchema.partial().parse(input);
+    const values = scheduleInputSchema.parse(input);
+
+    const existingDuplicate = await tenantPrisma.schedule.findFirst({
+      where: {
+        studentId: values.studentId,
+        dayOfWeek: values.dayOfWeek,
+        startTime: values.startTime,
+        active: true,
+        id: { not: id },
+      },
+      select: { id: true },
+    });
+
+    if (existingDuplicate) {
+      return {
+        ok: false,
+        error: "Another active schedule slot for this student at that day and start time already exists.",
+      };
+    }
+
     const updated = await repoUpdateSchedule(id, values);
 
     revalidatePath("/students");
@@ -63,8 +91,22 @@ export async function editScheduleAction(
 export async function removeScheduleAction(
   id: string,
   studentId: string
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; softDeactivated?: boolean } | { ok: false; error: string }> {
   try {
+    const sessionCount = await tenantPrisma.session.count({
+      where: { scheduleId: id },
+    });
+
+    if (sessionCount > 0) {
+      // Soft-deactivate to prevent cascading deletion of historical sessions
+      await repoUpdateSchedule(id, { active: false });
+      revalidatePath("/students");
+      revalidatePath(`/students/${studentId}`);
+      revalidatePath("/calendar");
+      revalidatePath("/");
+      return { ok: true, softDeactivated: true };
+    }
+
     await repoDeleteSchedule(id);
 
     revalidatePath("/students");

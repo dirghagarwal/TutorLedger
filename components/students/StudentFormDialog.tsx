@@ -23,7 +23,8 @@ const DEFAULT_VALUES: StudentFormValues = {
   name: "",
   subject: "",
   feeType: FeeType.MONTHLY,
-  fee: 0,
+  fee: 1000,
+  billingStartMonth: "",
   active: true,
   color: "#2563EB",
 };
@@ -50,6 +51,7 @@ export default function StudentFormDialog({
           subject: student.subject,
           feeType: student.feeType,
           fee: student.fee,
+          billingStartMonth: student.billingStartMonth ?? "",
           active: student.active,
           color: student.color,
         }
@@ -64,6 +66,7 @@ export default function StudentFormDialog({
             subject: student.subject,
             feeType: student.feeType,
             fee: student.fee,
+            billingStartMonth: student.billingStartMonth ?? "",
             active: student.active,
             color: student.color,
           }
@@ -112,6 +115,20 @@ export default function StudentFormDialog({
               <Input {...form.register("fee", { valueAsNumber: true })} aria-invalid={Boolean(form.formState.errors.fee)} min={1} type="number" />
             </Field>
           </div>
+          <Field
+            label="Billing start month (optional)"
+            error={form.formState.errors.billingStartMonth?.message}
+          >
+            <Input
+              {...form.register("billingStartMonth")}
+              type="month"
+              aria-invalid={Boolean(form.formState.errors.billingStartMonth)}
+              placeholder="YYYY-MM"
+            />
+            <span className="text-xs text-muted-foreground">
+              For monthly learners, fees accrue starting from this month (defaults to current month).
+            </span>
+          </Field>
           <Field label="Avatar color" error={form.formState.errors.color?.message}>
             <div className="flex items-center gap-3">
               <input {...form.register("color")} aria-label="Avatar color" className="size-9 cursor-pointer rounded-lg border border-input bg-transparent p-0.5" type="color" />
