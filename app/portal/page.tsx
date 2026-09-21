@@ -5,6 +5,7 @@ import { getParentPortalCookieName, verifyParentPortalSessionValue } from "@/lib
 import { rawPrisma } from "@/lib/db/raw";
 import { calculateLedgerBalance, calculateMonthlyAccruedFee } from "@/lib/services/billing";
 import { getTodayDateKey } from "@/lib/utils/date";
+import StudentSessionControls from "@/components/portal/StudentSessionControls";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,7 @@ export default async function ParentPortalPage() {
 
   if (!portal || portal.revokedAt) notFound();
 
-  const [sessions, notes, attendance] = await Promise.all([
+  const [sessions, notes, attendance, attachments] = await Promise.all([
     rawPrisma.session.findMany({
       where: { studentId: portal.studentId, teacherId: portal.teacherId },
       orderBy: [{ date: "desc" }, { startTime: "desc" }],
@@ -37,7 +38,18 @@ export default async function ParentPortalPage() {
       where: { session: { studentId: portal.studentId, teacherId: portal.teacherId } },
       select: { sessionId: true, status: true },
     }),
+    rawPrisma.attachment.findMany({
+      where: { session: { studentId: portal.studentId, teacherId: portal.teacherId } },
+      select: { id: true, sessionId: true, filename: true, storagePath: true },
+    }),
   ]);
+
+  const attachmentsBySession = new Map<string, Array<{ id: string; filename: string; storagePath: string }>>();
+  for (const att of attachments) {
+    const list = attachmentsBySession.get(att.sessionId) ?? [];
+    list.push(att);
+    attachmentsBySession.set(att.sessionId, list);
+  }
 
   const attendanceStatus = new Map<string, string>();
   for (const row of attendance as Array<{ sessionId: string; status: string }>) {
@@ -80,7 +92,9 @@ export default async function ParentPortalPage() {
       feeSummary = calculateLedgerBalance(attendedCount * portal.student.fee, collected);
     } else {
       const historicalDates = [
-        ...sessions.map((item: { id: string; date: string; startTime: string; endTime: string; status: string }) => item.date),
+        ...sessions
+          .filter((item: { id: string; date: string; startTime: string; endTime: string; status: string }) => item.status !== "CANCELLED")
+          .map((item: { id: string; date: string; startTime: string; endTime: string; status: string }) => item.date),
         ...payments.map((payment: { amount: number; status: string; date: string }) => payment.date),
       ];
       const accrued = calculateMonthlyAccruedFee(
@@ -100,7 +114,7 @@ export default async function ParentPortalPage() {
       </div>
       <div className="relative mx-auto max-w-4xl px-5 py-8 sm:px-8">
         <header className="mb-8">
-          <p className="text-sm text-white/45">TutorLedger · Parent Portal</p>
+          <p className="text-sm text-white/45">TutorLedger · Student & Parent Portal</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{portal.student.name}</h1>
           <p className="mt-1 text-sm text-white/50">{portal.student.subject} · Managed by {portal.teacher.name}</p>
         </header>
@@ -130,12 +144,13 @@ export default async function ParentPortalPage() {
 
         <section className="mt-6 overflow-hidden rounded-3xl border border-white/8 bg-white/[0.025]">
           <div className="border-b border-white/8 px-5 py-4">
-            <h2 className="font-medium">Class history</h2>
-            <p className="mt-1 text-xs text-white/45">Attendance, topics and homework shared by your tutor.</p>
+            <h2 className="font-medium">Class history & self-service</h2>
+            <p className="mt-1 text-xs text-white/45">Review attendance, update classwork, attach files, or reschedule classes.</p>
           </div>
           <div className="divide-y divide-white/6">
             {sessions.map((session: { id: string; date: string; startTime: string; endTime: string; status: string }) => {
               const note = notesBySession.get(session.id);
+              const sessionAtts = attachmentsBySession.get(session.id) ?? [];
               return (
                 <article key={session.id} className="px-5 py-5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -143,7 +158,11 @@ export default async function ParentPortalPage() {
                       <p className="font-medium">{session.date}</p>
                       <p className="text-xs text-white/45">{session.startTime}–{session.endTime}</p>
                     </div>
-                    <span className="rounded-full border border-white/8 px-2.5 py-1 text-xs text-white/60">
+                    <span className={`rounded-full border px-2.5 py-1 text-xs ${
+                      session.status === "CANCELLED"
+                        ? "border-red-500/20 bg-red-500/10 text-red-400"
+                        : "border-white/8 text-white/60"
+                    }`}>
                       {attendanceStatus.get(session.id) ?? session.status}
                     </span>
                   </div>
@@ -154,6 +173,15 @@ export default async function ParentPortalPage() {
                       {note.homework && <Info label="Homework" value={note.homework} /> }
                     </div>
                   )}
+                  <StudentSessionControls
+                    sessionId={session.id}
+                    initialTopic={note?.topic ?? ""}
+                    initialClasswork={note?.classwork ?? ""}
+                    startTime={session.startTime}
+                    endTime={session.endTime}
+                    status={session.status}
+                    attachments={sessionAtts}
+                  />
                 </article>
               );
             })}
@@ -161,7 +189,7 @@ export default async function ParentPortalPage() {
           </div>
         </section>
 
-        <p className="mt-6 text-center text-xs text-white/30">This private portal session is read-only and can be revoked by the tutor.</p>
+        <p className="mt-6 text-center text-xs text-white/30">This secure portal link allows you to review classes, update notes, and attach homework.</p>
       </div>
     </main>
   );

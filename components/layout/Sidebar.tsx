@@ -4,6 +4,7 @@ import {
   Home,
   Calendar,
   GraduationCap,
+  PlusCircle,
   Wallet,
   BarChart3,
   Settings,
@@ -16,6 +17,7 @@ export const menuItems = [
   { name: "Workspace", href: "/", icon: Home },
   { name: "Calendar", href: "/calendar", icon: Calendar },
   { name: "Students", href: "/students", icon: GraduationCap },
+  { name: "Record Class", href: "/record", icon: PlusCircle },
   { name: "Payments", href: "/payments", icon: Wallet },
   { name: "Reports", href: "/reports", icon: BarChart3 },
 ] as const;

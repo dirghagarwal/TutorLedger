@@ -52,6 +52,6 @@ function createTenantPrisma() {
   });
 }
 
-export const tenantPrisma = globalForTenantPrisma.tenantPrisma ?? createTenantPrisma();
+export const tenantPrisma: PrismaClient = (globalForTenantPrisma.tenantPrisma ?? createTenantPrisma()) as unknown as PrismaClient;
 
-if (process.env.NODE_ENV !== "production") globalForTenantPrisma.tenantPrisma = tenantPrisma;
+if (process.env.NODE_ENV !== "production") globalForTenantPrisma.tenantPrisma = tenantPrisma as unknown as ReturnType<typeof createTenantPrisma>;

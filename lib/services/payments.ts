@@ -7,7 +7,7 @@ import { PaymentStatus, type Payment } from "@/types/payment";
 import { FeeType, type Student } from "@/types/students";
 import { getDateKey, getTodayDateKey } from "@/lib/utils/date";
 import { calculateLedgerBalance, calculateMonthlyAccruedFee, getMonthKey } from "@/lib/services/billing";
-import type { Session } from "@/types/session";
+import { SessionStatus, type Session } from "@/types/session";
 
 function isCollected(payment: Payment): boolean {
   return (
@@ -97,7 +97,9 @@ async function getLedgerSnapshot(
     allAttendance ? [...allAttendance] : await findAttendance();
 
   const studentSessionIds = new Set(
-    sessions.filter((session) => session.studentId === studentId).map((session) => session.id)
+    sessions
+      .filter((session) => session.studentId === studentId && session.status !== SessionStatus.CANCELLED)
+      .map((session) => session.id)
   );
 
   const collected = getRevenueByStudentSync(studentId, records);
@@ -115,7 +117,7 @@ async function getLedgerSnapshot(
   const currentMonthKey = getTodayDateKey().slice(0, 7);
   const historicalDates = [
     ...sessions
-      .filter((session) => session.studentId === studentId)
+      .filter((session) => session.studentId === studentId && session.status !== SessionStatus.CANCELLED)
       .map((session) => session.date),
     ...records
       .filter((payment) => payment.studentId === studentId)

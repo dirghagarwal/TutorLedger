@@ -18,7 +18,7 @@ export async function getAllSessions(
     ...storedSessions,
   ];
   const uniqueSessions = new Map(
-    combined.map((session) => [`${session.scheduleId}:${session.date}`, session])
+    combined.map((session) => [`${session.studentId}:${session.date}:${session.startTime}`, session])
   );
   return [...uniqueSessions.values()].sort(sortSessions);
 }

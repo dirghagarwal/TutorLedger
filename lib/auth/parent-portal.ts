@@ -45,3 +45,49 @@ export function verifyParentPortalSessionValue(value: string | undefined) {
 
   return { portalId, expiresAt: new Date(expiresAtMs) };
 }
+
+export function validatePortalRecord(portal: {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  revokedAt: Date | null;
+  expiresAt: Date;
+} | null) {
+  if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) {
+    return null;
+  }
+  return {
+    portalId: portal.id,
+    teacherId: portal.teacherId,
+    studentId: portal.studentId,
+  };
+}
+
+export async function requireStudentPortalAuth() {
+  const { cookies } = await import("next/headers");
+  const { rawPrisma } = await import("@/lib/db/raw");
+
+  const cookie = (await cookies()).get(getParentPortalCookieName());
+  const portalSession = verifyParentPortalSessionValue(cookie?.value);
+  if (!portalSession) {
+    throw new Error("UNAUTHORIZED_PORTAL");
+  }
+
+  const portal = await rawPrisma.parentPortal.findUnique({
+    where: { id: portalSession.portalId },
+    select: {
+      id: true,
+      teacherId: true,
+      studentId: true,
+      revokedAt: true,
+      expiresAt: true,
+    },
+  });
+
+  const validated = validatePortalRecord(portal);
+  if (!validated) {
+    throw new Error("UNAUTHORIZED_PORTAL");
+  }
+
+  return validated;
+}

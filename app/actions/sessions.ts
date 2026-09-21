@@ -1,15 +1,18 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
+import { requireTeacher } from "@/lib/auth/session";
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
 import { createAttachment } from "@/lib/repositories/attachments";
 import { createSessionNote } from "@/lib/repositories/session-notes";
 import { ensureSessionExists, findSessionById, upsertSession } from "@/lib/repositories/sessions";
 import { logAiAuditTrail } from "@/lib/services/ai-safety";
 import { getTodayDateKey } from "@/lib/utils/date";
-import { attachmentTypeSchema, sessionEditInputSchema, sessionNoteInputSchema } from "@/lib/validations/session";
+import { sessionEditInputSchema, sessionNoteInputSchema, validateAttachmentFile } from "@/lib/validations/session";
+import { AttachmentType } from "@/types/attachment";
 import { AttendanceStatus } from "@/types/attendance";
 import { PaymentMethod, PaymentStatus } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
@@ -29,12 +32,6 @@ function revalidateSessionPaths(sessionId: string, studentId?: string) {
   if (sessionId) safeRevalidate(`/sessions/${sessionId}`);
   safeRevalidate("/reports");
   safeRevalidate("/");
-}
-
-async function fileToStoragePath(file: File): Promise<string> {
-  const bytes = await file.arrayBuffer();
-  const base64 = Buffer.from(bytes).toString("base64");
-  return `data:${file.type || "application/octet-stream"};base64,${base64}`;
 }
 
 export async function addSessionNote(input: unknown): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -74,9 +71,16 @@ export async function addSessionAttachment(formData: FormData): Promise<{ ok: tr
     const sessionId = String(formData.get("sessionId") ?? "");
     const studentId = String(formData.get("studentId") ?? "");
     const scheduleId = String(formData.get("scheduleId") ?? "");
-    const type = attachmentTypeSchema.parse(String(formData.get("type") ?? "FILE"));
     const file = formData.get("file");
     if (!(file instanceof File) || file.size === 0) return { ok: false, error: "Choose a file to upload." };
+
+    const bytes = await file.arrayBuffer();
+    const uint8 = new Uint8Array(bytes);
+
+    const validation = validateAttachmentFile(file.name, file.type, file.size, uint8);
+    if (!validation.valid) {
+      return { ok: false, error: validation.error ?? "Invalid attachment file." };
+    }
 
     let session = await findSessionById(sessionId);
     if (!session && studentId && scheduleId) {
@@ -92,12 +96,16 @@ export async function addSessionAttachment(formData: FormData): Promise<{ ok: tr
     }
     if (!session) return { ok: false, error: "Session record could not be found or created." };
 
+    const base64 = Buffer.from(bytes).toString("base64");
+    const safeMime = file.type || "application/octet-stream";
+    const storagePath = `data:${safeMime};base64,${base64}`;
+
     await createAttachment({
       id: crypto.randomUUID(),
       sessionId,
-      type,
+      type: validation.inferredType ?? AttachmentType.FILE,
       filename: file.name,
-      storagePath: await fileToStoragePath(file),
+      storagePath,
     });
     revalidateSessionPaths(sessionId, session.studentId);
     return { ok: true };
@@ -114,14 +122,27 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
     }
 
     const studentId = session.studentId;
+    const teacher = await requireTeacher();
 
-    // Prisma Transaction: Delete ONLY session-level records
-    await tenantPrisma.$transaction([
-      tenantPrisma.attendance.deleteMany({ where: { sessionId } }),
-      tenantPrisma.sessionNote.deleteMany({ where: { sessionId } }),
-      tenantPrisma.attachment.deleteMany({ where: { sessionId } }),
-      tenantPrisma.session.delete({ where: { id: sessionId } }),
-    ]);
+    // Prisma Transaction: verify allocation invariant and delete ONLY session-level records
+    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const paymentAllocations = await tx.paymentAllocation.count({
+        where: { sessionId },
+      });
+      if (paymentAllocations > 0) {
+        throw new Error("CANNOT_DELETE_ALLOCATED_SESSION");
+      }
+
+      await tx.attendance.deleteMany({ where: { sessionId } });
+      await tx.sessionNote.deleteMany({ where: { sessionId } });
+      await tx.attachment.deleteMany({ where: { sessionId } });
+      await tx.session.delete({ where: { id: sessionId } });
+    }).catch((err: unknown) => {
+      if (err instanceof Error && err.message === "CANNOT_DELETE_ALLOCATED_SESSION") {
+        throw new Error("Cannot delete a session with recorded payment allocations. Cancel the session or remove the payment allocation first.");
+      }
+      throw err;
+    });
 
     // Safety Audit Check: Verify Student record is STILL intact
     const studentCheck = await tenantPrisma.student.findUnique({ where: { id: studentId } });
@@ -164,6 +185,22 @@ export async function addPastClassAction(input: AddPastClassInput): Promise<{ ok
     const student = await tenantPrisma.student.findUnique({ where: { id: input.studentId } });
     if (!student) {
       return { ok: false, error: "Student record not found." };
+    }
+
+    // Application-level collision check before creating session, notes, attendance, or payments
+    const existingCollision = await tenantPrisma.session.findFirst({
+      where: {
+        studentId: input.studentId,
+        date: input.date,
+        startTime: input.startTime,
+      },
+    });
+
+    if (existingCollision) {
+      return {
+        ok: false,
+        error: "A class for this student on this date and start time already exists.",
+      };
     }
 
     const canonicalSession = await ensureSessionExists({
@@ -278,6 +315,8 @@ export async function updateSessionAction(
       return { ok: false, error: "Session record not found." };
     }
 
+    const teacher = await requireTeacher();
+
     const conflictingSession = await tenantPrisma.session.findFirst({
       where: {
         studentId: session.studentId,
@@ -295,43 +334,51 @@ export async function updateSessionAction(
       };
     }
 
-    await tenantPrisma.session.update({
-      where: { id: session.id },
-      data: {
-        date: values.date,
-        startTime: values.startTime,
-        endTime: values.endTime,
-        status: values.status,
-      },
-    });
+    const isCancelling = values.status === SessionStatus.CANCELLED;
+    const effectiveAttendanceStatus = isCancelling
+      ? AttendanceStatus.CANCELLED
+      : values.attendanceStatus;
 
-    const existingAttendance = await tenantPrisma.attendance.findUnique({
-      where: { sessionId: session.id },
-    });
-
-    if (existingAttendance) {
-      await tenantPrisma.attendance.update({
-        where: { sessionId: session.id },
+    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await tx.session.update({
+        where: { id: session.id },
         data: {
           date: values.date,
           startTime: values.startTime,
           endTime: values.endTime,
-          ...(values.attendanceStatus ? { status: values.attendanceStatus } : {}),
+          status: values.status,
         },
       });
-    } else if (values.attendanceStatus) {
-      await tenantPrisma.attendance.create({
-        data: {
-          id: "attendance-" + session.id,
-          sessionId: session.id,
-          date: values.date,
-          startTime: values.startTime,
-          endTime: values.endTime,
-          status: values.attendanceStatus,
-          notes: "Recorded via manual session edit",
-        } as never,
+
+      const existingAttendance = await tx.attendance.findUnique({
+        where: { sessionId: session.id },
       });
-    }
+
+      if (existingAttendance) {
+        await tx.attendance.update({
+          where: { sessionId: session.id },
+          data: {
+            date: values.date,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            ...(effectiveAttendanceStatus ? { status: effectiveAttendanceStatus } : {}),
+          },
+        });
+      } else if (effectiveAttendanceStatus) {
+        await tx.attendance.create({
+          data: {
+            id: "attendance-" + session.id,
+            sessionId: session.id,
+            teacherId: teacher.id,
+            date: values.date,
+            startTime: values.startTime,
+            endTime: values.endTime,
+            status: effectiveAttendanceStatus,
+            notes: isCancelling ? "Synchronized on session cancellation" : "Recorded via manual session edit",
+          },
+        });
+      }
+    });
 
     revalidateSessionPaths(session.id, session.studentId);
     return { ok: true, sessionId: session.id };

@@ -1,18 +1,23 @@
 import { requireTeacher } from "@/lib/auth/session";
 import { rawPrisma } from "@/lib/db/raw";
 import PortalManager from "@/components/settings/PortalManager";
+import TeacherAccountManager from "@/components/settings/TeacherAccountManager";
 import { logoutTeacher } from "@/app/actions/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const teacher = await requireTeacher();
-  const [students, portals] = await Promise.all([
+  const [students, portals, allTeachers] = await Promise.all([
     rawPrisma.student.findMany({ where: { teacherId: teacher.id, active: true }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     rawPrisma.parentPortal.findMany({
       where: { teacherId: teacher.id },
       orderBy: { createdAt: "desc" },
       include: { student: { select: { name: true } } },
+    }),
+    rawPrisma.teacher.findMany({
+      select: { id: true, name: true, email: true },
+      orderBy: { name: "asc" },
     }),
   ]);
 
@@ -27,11 +32,13 @@ export default async function SettingsPage() {
 
         <div className="grid gap-6 lg:grid-cols-2">
           <section className="rounded-3xl border border-border bg-surface p-6 shadow-card">
-            <h2 className="text-lg font-semibold">Your account</h2>
-            <p className="mt-1 text-sm text-muted-foreground">This workspace is private to your signed-in teacher account.</p>
-            <div className="mt-5 rounded-2xl border border-border bg-background/50 px-4 py-4">
-              <p className="font-medium">{teacher.name}</p>
-              <p className="text-xs text-muted-foreground">{teacher.email ?? "Email not configured"}</p>
+            <h2 className="text-lg font-semibold">Teacher accounts & security</h2>
+            <p className="mt-1 text-sm text-muted-foreground">Manage profile, rotate password, switch workspace, or provision a second teacher.</p>
+            <div className="mt-5">
+              <TeacherAccountManager
+                currentTeacher={{ id: teacher.id, name: teacher.name, email: teacher.email }}
+                availableTeachers={allTeachers}
+              />
             </div>
           </section>
 

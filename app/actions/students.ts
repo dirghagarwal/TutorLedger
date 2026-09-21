@@ -43,10 +43,11 @@ function safeRevalidate(path: string) {
 
 export async function addStudent(input: unknown): Promise<ActionResult> {
   try {
+    const parsed = parseInput(input);
     const student = await createStudent({
       id: crypto.randomUUID(),
-      ...parseInput(input),
-      billingStartMonth: getCurrentBillingMonth(),
+      ...parsed,
+      billingStartMonth: parsed.billingStartMonth || getCurrentBillingMonth(),
     });
     safeRevalidate("/students");
     safeRevalidate("/calendar");

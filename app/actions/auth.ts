@@ -8,6 +8,7 @@ import {
   createTeacherSession,
   destroyTeacherSession,
   hashPassword,
+  requireTeacher,
   verifyPassword,
 } from "@/lib/auth/session";
 
@@ -175,4 +176,93 @@ export async function registerTeacher(formData: FormData) {
 
   await createTeacherSession(teacher.id);
   redirect("/");
+}
+
+export async function updatePasswordAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const teacher = await requireTeacher();
+    const currentPassword = String(formData.get("currentPassword") ?? "");
+    const newPassword = String(formData.get("newPassword") ?? "");
+
+    if (!verifyPassword(currentPassword, teacher.passwordHash)) {
+      return { ok: false, error: "Current password is incorrect." };
+    }
+
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      return { ok: false, error: "New password must be between 8 and 128 characters." };
+    }
+
+    await rawPrisma.teacher.update({
+      where: { id: teacher.id },
+      data: { passwordHash: hashPassword(newPassword) },
+    });
+
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to update password." };
+  }
+}
+
+export async function provisionTeacherAccountAction(
+  formData: FormData
+): Promise<{ ok: true; teacherId: string } | { ok: false; error: string }> {
+  try {
+    await requireTeacher();
+    const name = String(formData.get("name") ?? "").trim();
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    const password = String(formData.get("password") ?? "");
+
+    if (!name || name.length < 2) {
+      return { ok: false, error: "Enter a valid name (at least 2 characters)." };
+    }
+
+    if (!z.string().email().safeParse(email).success) {
+      return { ok: false, error: "Enter a valid email address." };
+    }
+
+    if (password.length < 8 || password.length > 128) {
+      return { ok: false, error: "Password must be between 8 and 128 characters." };
+    }
+
+    const existing = await rawPrisma.teacher.findUnique({ where: { email } });
+    if (existing) {
+      return { ok: false, error: "A teacher account with that email already exists." };
+    }
+
+    const teacher = await rawPrisma.teacher.create({
+      data: {
+        id: crypto.randomUUID(),
+        name,
+        email,
+        passwordHash: hashPassword(password),
+      },
+    });
+
+    return { ok: true, teacherId: teacher.id };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to create teacher account." };
+  }
+}
+
+export async function switchTeacherAccountAction(
+  formData: FormData
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await requireTeacher();
+    const email = String(formData.get("email") ?? "").trim().toLowerCase();
+    const password = String(formData.get("password") ?? "");
+
+    const target = await rawPrisma.teacher.findUnique({ where: { email } });
+    if (!target || !verifyPassword(password, target.passwordHash)) {
+      return { ok: false, error: "Invalid credentials for account switch." };
+    }
+
+    await destroyTeacherSession();
+    await createTeacherSession(target.id);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Unable to switch account." };
+  }
 }

@@ -30,8 +30,16 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Student | null>(null);
   const [typedDelete, setTypedDelete] = useState("");
+  const [filter, setFilter] = useState<"all" | "active" | "archived">("active");
   const [isPending, startTransition] = useTransition();
   const activeStudents = items.filter(({ student }) => student.active).length;
+  const archivedStudents = items.filter(({ student }) => !student.active).length;
+
+  const filteredItems = items.filter(({ student }) => {
+    if (filter === "active") return student.active;
+    if (filter === "archived") return !student.active;
+    return true;
+  });
 
   const openAdd = () => {
     setEditingStudent(null);
@@ -117,7 +125,64 @@ export default function StudentsClient({ initialItems, initialPendingFees }: Rea
       </div>
 
       {error && <div className="mb-5 flex items-center justify-between rounded-xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive"><span>{error}</span><Button size="sm" variant="ghost" onClick={() => setError(null)}><RotateCcw /> Dismiss</Button></div>}
-      {items.length > 0 ? <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => <StudentCard {...item} key={item.student.id} onArchive={handleArchive} onDelete={handleDelete} onEdit={openEdit} />)}</div> : <div className="rounded-3xl border border-dashed border-border-strong bg-surface p-10 text-center text-muted-foreground">No students have been added yet.</div>}
+
+      <div className="mb-6 flex items-center gap-2 border-b border-border pb-3">
+        <button
+          type="button"
+          onClick={() => setFilter("active")}
+          className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition ${
+            filter === "active"
+              ? "bg-primary text-primary-foreground"
+              : "bg-surface text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Active ({activeStudents})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter("archived")}
+          className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition ${
+            filter === "archived"
+              ? "bg-primary text-primary-foreground"
+              : "bg-surface text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Archived ({archivedStudents})
+        </button>
+        <button
+          type="button"
+          onClick={() => setFilter("all")}
+          className={`rounded-xl px-3.5 py-1.5 text-xs font-medium transition ${
+            filter === "all"
+              ? "bg-primary text-primary-foreground"
+              : "bg-surface text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          All ({items.length})
+        </button>
+      </div>
+
+      {filteredItems.length > 0 ? (
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {filteredItems.map((item) => (
+            <StudentCard
+              {...item}
+              key={item.student.id}
+              onArchive={handleArchive}
+              onDelete={handleDelete}
+              onEdit={openEdit}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="rounded-3xl border border-dashed border-border-strong bg-surface p-10 text-center text-muted-foreground">
+          {filter === "active"
+            ? "No active students found."
+            : filter === "archived"
+            ? "No archived students found."
+            : "No students have been added yet."}
+        </div>
+      )}
       {isPending && <p className="mt-4 text-xs text-muted-foreground">Saving changes…</p>}
       <StudentFormDialog onOpenChange={setDialogOpen} onSaved={saveStudent} open={dialogOpen} student={editingStudent} />
 
