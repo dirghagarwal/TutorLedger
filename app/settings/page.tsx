@@ -3,6 +3,7 @@ import { rawPrisma } from "@/lib/db/raw";
 import PortalManager from "@/components/settings/PortalManager";
 import TeacherAccountManager from "@/components/settings/TeacherAccountManager";
 import { logoutTeacher } from "@/app/actions/auth";
+import BackButton from "@/components/layout/BackButton";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,10 @@ export default async function SettingsPage() {
     <main className="min-h-screen bg-background text-foreground">
       <div className="mx-auto max-w-6xl px-5 py-8 sm:px-8">
         <div className="mb-10">
+          <div className="mb-5 flex items-center gap-3">
+            <BackButton fallback="/" />
+            <span className="text-xs text-muted-foreground">Back</span>
+          </div>
           <p className="text-sm font-medium tracking-[0.24em] text-primary uppercase">Settings</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">Workspace & access</h1>
           <p className="mt-2 text-sm text-muted-foreground">Teacher accounts are isolated, and parent links are limited to one student.</p>
