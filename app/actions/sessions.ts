@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 
 import { recordAttendance, recordPayment } from "@/app/actions/workflow";
 import { tenantPrisma } from "@/lib/db/tenant-prisma";
@@ -332,7 +333,7 @@ export async function updateSessionAction(
       ? AttendanceStatus.CANCELLED
       : values.attendanceStatus;
 
-    await tenantPrisma.$transaction(async (tx) => {
+    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.session.update({
         where: { id: session.id },
         data: {
