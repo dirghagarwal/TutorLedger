@@ -135,7 +135,7 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
       await tx.sessionNote.deleteMany({ where: { sessionId } });
       await tx.attachment.deleteMany({ where: { sessionId } });
       await tx.session.delete({ where: { id: sessionId } });
-    }).catch((err) => {
+    }).catch((err: unknown) => {
       if (err instanceof Error && err.message === "CANNOT_DELETE_ALLOCATED_SESSION") {
         throw new Error("Cannot delete a session with recorded payment allocations. Cancel the session or remove the payment allocation first.");
       }
@@ -365,7 +365,7 @@ export async function updateSessionAction(
           data: {
             id: "attendance-" + session.id,
             sessionId: session.id,
-            teacherId: "",
+            teacherId: session.teacherId,
             date: values.date,
             startTime: values.startTime,
             endTime: values.endTime,
