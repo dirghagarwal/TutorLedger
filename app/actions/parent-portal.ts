@@ -2,6 +2,7 @@
 
 import { createHash, randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
+import type { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { requireStudentPortalAuth } from "@/lib/auth/parent-portal";
 import { requireTeacher } from "@/lib/auth/session";
@@ -190,12 +191,7 @@ export async function studentRescheduleSessionAction(
 }
 
 export async function executeStudentCancellation(
-  tx: {
-    paymentAllocation: { count: (args: { where: { sessionId: string; teacherId: string } }) => Promise<number> };
-    session: { update: (args: { where: { id: string }; data: { status: string } }) => Promise<unknown> };
-    attendance: { updateMany: (args: { where: { sessionId: string; teacherId: string }; data: { status: string } }) => Promise<unknown> };
-    auditLog: { create: (args: { data: { id: string; teacherId: string; studentId: string; sessionId: string; action: string; userPrompt: string; result: string; resolvedDate: string } }) => Promise<unknown> };
-  },
+  tx: Prisma.TransactionClient,
   params: {
     sessionId: string;
     studentId: string;
@@ -259,7 +255,7 @@ export async function studentCancelSessionAction(
         teacherId: portal.teacherId,
         sessionDate: session.date,
       });
-    }).catch((error) => {
+    }).catch((error: unknown) => {
       if (error instanceof Error && error.message === "CANNOT_CANCEL_ALLOCATED_SESSION") {
         throw new Error("Cannot cancel a class with allocated payments. Please contact your tutor.");
       }
