@@ -190,8 +190,10 @@ export async function studentRescheduleSessionAction(
   }
 }
 
+type StudentCancellationTx = Pick<Prisma.TransactionClient, "paymentAllocation" | "session" | "attendance" | "auditLog">;
+
 export async function executeStudentCancellation(
-  tx: Prisma.TransactionClient,
+  tx: StudentCancellationTx,
   params: {
     sessionId: string;
     studentId: string;
