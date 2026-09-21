@@ -2,8 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   createParentPortalSessionValue,
+  validatePortalRecord,
   verifyParentPortalSessionValue,
 } from "../lib/auth/parent-portal";
+import { executeStudentCancellation } from "../app/actions/parent-portal";
 
 test("portal session token generates valid signed string and verifies successfully", () => {
   const portalId = "portal-12345";
@@ -116,20 +118,116 @@ test("student editable allowlist enforces permitted vs forbidden fields", () => 
   }
 });
 
-test("student cancellation is blocked if payment allocations exist", () => {
-  const sessionAllocations = new Map<string, number>([
-    ["sess-with-payment", 1],
-    ["sess-unpaid", 0],
-  ]);
+test("validatePortalRecord rejects revoked and expired portals and accepts active portals", () => {
+  const activePortal = {
+    id: "p-active",
+    teacherId: "t-1",
+    studentId: "s-1",
+    revokedAt: null,
+    expiresAt: new Date(Date.now() + 1000 * 60 * 60 * 24), // tomorrow
+  };
+  const revokedPortal = {
+    ...activePortal,
+    id: "p-revoked",
+    revokedAt: new Date(Date.now() - 1000 * 60), // revoked 1 min ago
+  };
+  const expiredPortal = {
+    ...activePortal,
+    id: "p-expired",
+    expiresAt: new Date(Date.now() - 1000 * 60), // expired 1 min ago
+  };
 
-  function canStudentCancel(sessionId: string): { ok: boolean; reason?: string } {
-    const allocCount = sessionAllocations.get(sessionId) ?? 0;
-    if (allocCount > 0) {
-      return { ok: false, reason: "Cannot cancel a class with allocated payments. Please contact your tutor." };
-    }
-    return { ok: true };
-  }
+  assert.deepEqual(validatePortalRecord(activePortal), {
+    portalId: "p-active",
+    teacherId: "t-1",
+    studentId: "s-1",
+  });
+  assert.equal(validatePortalRecord(revokedPortal), null);
+  assert.equal(validatePortalRecord(expiredPortal), null);
+  assert.equal(validatePortalRecord(null), null);
+});
 
-  assert.equal(canStudentCancel("sess-with-payment").ok, false);
-  assert.equal(canStudentCancel("sess-unpaid").ok, true);
+test("production executeStudentCancellation enforces payment allocation invariant inside transaction", async () => {
+  let sessionUpdated = false;
+  let attendanceUpdated = false;
+  let auditCreated = false;
+
+  const mockTxWithAllocation = {
+    paymentAllocation: {
+      count: async () => 1,
+    },
+    session: {
+      update: async () => {
+        sessionUpdated = true;
+      },
+    },
+    attendance: {
+      updateMany: async () => {
+        attendanceUpdated = true;
+      },
+    },
+    auditLog: {
+      create: async () => {
+        auditCreated = true;
+      },
+    },
+  };
+
+  // Must reject and abort before updating session, attendance, or audit log
+  await assert.rejects(
+    async () => {
+      await executeStudentCancellation(mockTxWithAllocation, {
+        sessionId: "session-allocated",
+        studentId: "student-1",
+        teacherId: "teacher-1",
+        sessionDate: "2026-09-20",
+      });
+    },
+    { message: "CANNOT_CANCEL_ALLOCATED_SESSION" }
+  );
+
+  assert.equal(sessionUpdated, false);
+  assert.equal(attendanceUpdated, false);
+  assert.equal(auditCreated, false);
+});
+
+test("production executeStudentCancellation atomically updates session, attendance, and audit log when unallocated", async () => {
+  let updatedSessionData: Record<string, unknown> | null = null;
+  let updatedAttendanceWhere: Record<string, unknown> | null = null;
+  let createdAuditData: { action?: string; teacherId?: string; studentId?: string } | null = null;
+
+  const mockTxUnallocated = {
+    paymentAllocation: {
+      count: async () => 0,
+    },
+    session: {
+      update: async (args: { where: { id: string }; data: { status: string } }) => {
+        updatedSessionData = args.data;
+      },
+    },
+    attendance: {
+      updateMany: async (args: { where: { sessionId: string; teacherId: string }; data: { status: string } }) => {
+        updatedAttendanceWhere = args.where;
+      },
+    },
+    auditLog: {
+      create: async (args: { data: { action?: string; teacherId?: string; studentId?: string } }) => {
+        createdAuditData = args.data;
+      },
+    },
+  };
+
+  await executeStudentCancellation(mockTxUnallocated, {
+    sessionId: "session-free",
+    studentId: "student-1",
+    teacherId: "teacher-1",
+    sessionDate: "2026-09-20",
+  });
+
+  assert.deepEqual(updatedSessionData, { status: "CANCELLED" });
+  assert.deepEqual(updatedAttendanceWhere, { sessionId: "session-free", teacherId: "teacher-1" });
+  const capturedAudit = createdAuditData as { action?: string; teacherId?: string; studentId?: string } | null;
+  assert.equal(capturedAudit?.action, "STUDENT_SESSION_CANCELLED");
+  assert.equal(capturedAudit?.teacherId, "teacher-1");
+  assert.equal(capturedAudit?.studentId, "student-1");
 });

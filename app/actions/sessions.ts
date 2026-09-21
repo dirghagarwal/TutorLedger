@@ -120,25 +120,27 @@ export async function deleteSessionAction(sessionId: string): Promise<{ ok: true
       return { ok: false, error: "Session record not found." };
     }
 
-    const paymentAllocations = await tenantPrisma.paymentAllocation.count({
-      where: { sessionId },
-    });
-    if (paymentAllocations > 0) {
-      return {
-        ok: false,
-        error: "Cannot delete a session with recorded payment allocations. Cancel the session or remove the payment allocation first.",
-      };
-    }
-
     const studentId = session.studentId;
 
-    // Prisma Transaction: Delete ONLY session-level records
-    await tenantPrisma.$transaction([
-      tenantPrisma.attendance.deleteMany({ where: { sessionId } }),
-      tenantPrisma.sessionNote.deleteMany({ where: { sessionId } }),
-      tenantPrisma.attachment.deleteMany({ where: { sessionId } }),
-      tenantPrisma.session.delete({ where: { id: sessionId } }),
-    ]);
+    // Prisma Transaction: verify allocation invariant and delete ONLY session-level records
+    await tenantPrisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      const paymentAllocations = await tx.paymentAllocation.count({
+        where: { sessionId },
+      });
+      if (paymentAllocations > 0) {
+        throw new Error("CANNOT_DELETE_ALLOCATED_SESSION");
+      }
+
+      await tx.attendance.deleteMany({ where: { sessionId } });
+      await tx.sessionNote.deleteMany({ where: { sessionId } });
+      await tx.attachment.deleteMany({ where: { sessionId } });
+      await tx.session.delete({ where: { id: sessionId } });
+    }).catch((err) => {
+      if (err instanceof Error && err.message === "CANNOT_DELETE_ALLOCATED_SESSION") {
+        throw new Error("Cannot delete a session with recorded payment allocations. Cancel the session or remove the payment allocation first.");
+      }
+      throw err;
+    });
 
     // Safety Audit Check: Verify Student record is STILL intact
     const studentCheck = await tenantPrisma.student.findUnique({ where: { id: studentId } });

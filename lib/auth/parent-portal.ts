@@ -46,6 +46,23 @@ export function verifyParentPortalSessionValue(value: string | undefined) {
   return { portalId, expiresAt: new Date(expiresAtMs) };
 }
 
+export function validatePortalRecord(portal: {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  revokedAt: Date | null;
+  expiresAt: Date;
+} | null) {
+  if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) {
+    return null;
+  }
+  return {
+    portalId: portal.id,
+    teacherId: portal.teacherId,
+    studentId: portal.studentId,
+  };
+}
+
 export async function requireStudentPortalAuth() {
   const { cookies } = await import("next/headers");
   const { rawPrisma } = await import("@/lib/db/raw");
@@ -67,13 +84,10 @@ export async function requireStudentPortalAuth() {
     },
   });
 
-  if (!portal || portal.revokedAt || portal.expiresAt.getTime() <= Date.now()) {
+  const validated = validatePortalRecord(portal);
+  if (!validated) {
     throw new Error("UNAUTHORIZED_PORTAL");
   }
 
-  return {
-    portalId: portal.id,
-    teacherId: portal.teacherId,
-    studentId: portal.studentId,
-  };
+  return validated;
 }

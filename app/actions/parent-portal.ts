@@ -148,6 +148,9 @@ export async function studentRescheduleSessionAction(
       },
     });
     if (!session) return { ok: false, error: "Session not found." };
+    if (session.status === "CANCELLED") {
+      return { ok: false, error: "Cannot reschedule a cancelled class." };
+    }
 
     const collision = await rawPrisma.session.findFirst({
       where: {
@@ -186,6 +189,51 @@ export async function studentRescheduleSessionAction(
   }
 }
 
+export async function executeStudentCancellation(
+  tx: {
+    paymentAllocation: { count: (args: { where: { sessionId: string; teacherId: string } }) => Promise<number> };
+    session: { update: (args: { where: { id: string }; data: { status: string } }) => Promise<unknown> };
+    attendance: { updateMany: (args: { where: { sessionId: string; teacherId: string }; data: { status: string } }) => Promise<unknown> };
+    auditLog: { create: (args: { data: { id: string; teacherId: string; studentId: string; sessionId: string; action: string; userPrompt: string; result: string; resolvedDate: string } }) => Promise<unknown> };
+  },
+  params: {
+    sessionId: string;
+    studentId: string;
+    teacherId: string;
+    sessionDate: string;
+  }
+) {
+  // Keep the allocation invariant inside the same transaction as cancellation.
+  // This prevents a concurrent payment allocation from racing the pre-check.
+  const allocationCount = await tx.paymentAllocation.count({
+    where: { sessionId: params.sessionId, teacherId: params.teacherId },
+  });
+  if (allocationCount > 0) {
+    throw new Error("CANNOT_CANCEL_ALLOCATED_SESSION");
+  }
+
+  await tx.session.update({
+    where: { id: params.sessionId },
+    data: { status: "CANCELLED" },
+  });
+  await tx.attendance.updateMany({
+    where: { sessionId: params.sessionId, teacherId: params.teacherId },
+    data: { status: "CANCELLED" },
+  });
+  await tx.auditLog.create({
+    data: {
+      id: crypto.randomUUID(),
+      teacherId: params.teacherId,
+      studentId: params.studentId,
+      sessionId: params.sessionId,
+      action: "STUDENT_SESSION_CANCELLED",
+      userPrompt: "Cancellation submitted via Student Portal",
+      result: "Session " + params.sessionId + " on " + params.sessionDate + " cancelled by student.",
+      resolvedDate: params.sessionDate,
+    },
+  });
+}
+
 export async function studentCancelSessionAction(
   sessionId: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -205,34 +253,11 @@ export async function studentCancelSessionAction(
     }
 
     await rawPrisma.$transaction(async (tx) => {
-      // Keep the allocation invariant inside the same transaction as cancellation.
-      // This prevents a concurrent payment allocation from racing the pre-check.
-      const allocationCount = await tx.paymentAllocation.count({
-        where: { sessionId: session.id, teacherId: portal.teacherId },
-      });
-      if (allocationCount > 0) {
-        throw new Error("CANNOT_CANCEL_ALLOCATED_SESSION");
-      }
-
-      await tx.session.update({
-        where: { id: session.id },
-        data: { status: "CANCELLED" },
-      });
-      await tx.attendance.updateMany({
-        where: { sessionId: session.id, teacherId: portal.teacherId },
-        data: { status: "CANCELLED" },
-      });
-      await tx.auditLog.create({
-        data: {
-          id: crypto.randomUUID(),
-          teacherId: portal.teacherId,
-          studentId: portal.studentId,
-          sessionId: session.id,
-          action: "STUDENT_SESSION_CANCELLED",
-          userPrompt: "Cancellation submitted via Student Portal",
-          result: "Session " + session.id + " on " + session.date + " cancelled by student.",
-          resolvedDate: session.date,
-        },
+      await executeStudentCancellation(tx, {
+        sessionId: session.id,
+        studentId: portal.studentId,
+        teacherId: portal.teacherId,
+        sessionDate: session.date,
       });
     }).catch((error) => {
       if (error instanceof Error && error.message === "CANNOT_CANCEL_ALLOCATED_SESSION") {
@@ -266,6 +291,9 @@ export async function studentUploadAttachmentAction(
       },
     });
     if (!session) return { ok: false, error: "Session not found." };
+    if (session.status === "CANCELLED") {
+      return { ok: false, error: "Cannot upload attachments to a cancelled class." };
+    }
 
     const bytes = await file.arrayBuffer();
     const uint8 = new Uint8Array(bytes);
