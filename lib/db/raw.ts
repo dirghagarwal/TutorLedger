@@ -10,6 +10,6 @@ export const rawPrisma =
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") {
-  globalForRawPrisma.rawPrisma = rawPrisma;
-}
+// Reuse the client in warm Next.js/Vercel runtimes to avoid creating a fresh
+// database pool on every serverless invocation.
+globalForRawPrisma.rawPrisma = rawPrisma;
