@@ -8,4 +8,6 @@ export const prisma =
     log: process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"],
   });
 
-if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
+// Reuse the client in warm Next.js/Vercel runtimes to avoid creating a fresh
+// database pool on every serverless invocation.
+globalForPrisma.prisma = prisma;
