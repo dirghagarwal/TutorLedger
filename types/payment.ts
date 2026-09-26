@@ -25,5 +25,9 @@ export interface Payment {
   method: PaymentMethod;
   status: PaymentStatus;
   billingPeriod: BillingPeriod;
+  coveredMonth?: string | null;
+  coveredFromDate?: string | null;
+  coveredToDate?: string | null;
+  coveredClassCount?: number | null;
   notes: string;
 }
