@@ -172,11 +172,16 @@ model Payment {
   method        String
   status        String
   billingPeriod String
+  coveredMonth String?
+  coveredFromDate String?
+  coveredToDate String?
+  coveredClassCount Int?
   notes         String
   student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   session       Session? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
   allocations   PaymentAllocation[]
   @@index([studentId, date])
+  @@index([studentId, coveredMonth])
   @@index([sessionId])
   @@index([teacherId])
 }

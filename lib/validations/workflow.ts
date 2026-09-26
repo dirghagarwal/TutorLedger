@@ -5,6 +5,7 @@ import { BillingPeriod, PaymentMethod, PaymentStatus } from "@/types/payment";
 import { SessionStatus } from "@/types/session";
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a valid date.");
+const month = z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use a valid YYYY-MM month.");
 
 export const attendanceInputSchema = z.object({
   sessionId: z.string().min(1),
@@ -13,12 +14,7 @@ export const attendanceInputSchema = z.object({
   date,
   startTime: z.string().min(1),
   endTime: z.string().min(1),
-  status: z.enum([
-    AttendanceStatus.PRESENT,
-    AttendanceStatus.ABSENT,
-    AttendanceStatus.CANCELLED,
-    AttendanceStatus.RESCHEDULED,
-  ]),
+  status: z.enum([AttendanceStatus.PRESENT, AttendanceStatus.ABSENT, AttendanceStatus.CANCELLED, AttendanceStatus.RESCHEDULED]),
   notes: z.string().default(""),
 });
 
@@ -29,13 +25,7 @@ export const sessionStatusInputSchema = z.object({
   date: date.optional(),
   startTime: z.string().min(1).optional(),
   endTime: z.string().min(1).optional(),
-  status: z.enum([
-    SessionStatus.PLANNED,
-    SessionStatus.IN_PROGRESS,
-    SessionStatus.COMPLETED,
-    SessionStatus.CANCELLED,
-    SessionStatus.RESCHEDULED,
-  ]),
+  status: z.enum([SessionStatus.PLANNED, SessionStatus.IN_PROGRESS, SessionStatus.COMPLETED, SessionStatus.CANCELLED, SessionStatus.RESCHEDULED]),
   startedAt: z.string().datetime().optional().nullable(),
   endedAt: z.string().datetime().optional().nullable(),
   durationMinutes: z.number().int().nonnegative().optional().nullable(),
@@ -46,23 +36,15 @@ export const paymentInputSchema = z.object({
   sessionId: z.string().min(1).optional(),
   amount: z.number().int().positive("Amount must be greater than zero."),
   date,
-  method: z.enum([
-    PaymentMethod.CASH,
-    PaymentMethod.UPI,
-    PaymentMethod.BANK_TRANSFER,
-    PaymentMethod.CARD,
-  ]),
-  status: z.enum([
-    PaymentStatus.PAID,
-    PaymentStatus.PARTIAL,
-    PaymentStatus.PENDING,
-  ]),
+  method: z.enum([PaymentMethod.CASH, PaymentMethod.UPI, PaymentMethod.BANK_TRANSFER, PaymentMethod.CARD]),
+  status: z.enum([PaymentStatus.PAID, PaymentStatus.PARTIAL, PaymentStatus.PENDING]),
   billingPeriod: z.enum([BillingPeriod.MONTHLY, BillingPeriod.CLASSWISE]),
+  coveredMonth: month.optional().nullable(),
+  coveredFromDate: date.optional().nullable(),
+  coveredToDate: date.optional().nullable(),
+  coveredClassCount: z.number().int().positive().optional().nullable(),
   notes: z.string().default(""),
-  allocations: z.array(z.object({
-    sessionId: z.string().min(1),
-    amount: z.number().int().positive(),
-  })).optional().default([]),
+  allocations: z.array(z.object({ sessionId: z.string().min(1), amount: z.number().int().positive() })).optional().default([]),
 });
 
 export type AttendanceInput = z.infer<typeof attendanceInputSchema>;

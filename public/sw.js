@@ -1,19 +1,15 @@
-const CACHE_NAME = "tutorledger-v3";
-const APP_SHELL = ["/", "/manifest.webmanifest"];
+const CACHE_NAME = "tutorledger-v4";
+const STATIC_PREFIXES = ["/_next/static/", "/icons/"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.add("/manifest.webmanifest")));
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches.keys().then((keys) =>
-      Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
-      )
+      Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))
     )
   );
   self.clients.claim();
@@ -24,15 +20,14 @@ self.addEventListener("fetch", (event) => {
   const requestUrl = new URL(event.request.url);
   if (requestUrl.origin !== self.location.origin) return;
 
-  const isNavigation =
-    event.request.mode === "navigate" ||
-    (event.request.headers.get("accept") || "").includes("text/html");
-
+  const isNavigation = event.request.mode === "navigate" || (event.request.headers.get("accept") || "").includes("text/html");
   if (isNavigation) {
-    // Network-First for HTML navigation without storing stale HTML copies
     event.respondWith(
       fetch(event.request).catch(() =>
-        caches.match(event.request).then((cached) => cached || caches.match("/"))
+        new Response("TutorLedger is offline. Reconnect to load your latest workspace.", {
+          status: 503,
+          headers: { "Content-Type": "text/plain; charset=utf-8" },
+        })
       )
     );
     return;
@@ -42,11 +37,7 @@ self.addEventListener("fetch", (event) => {
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        if (
-          response.ok &&
-          (requestUrl.pathname.startsWith("/_next/static/") ||
-            requestUrl.pathname.startsWith("/icons/"))
-        ) {
+        if (response.ok && STATIC_PREFIXES.some((prefix) => requestUrl.pathname.startsWith(prefix))) {
           const copy = response.clone();
           void caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
         }
@@ -55,4 +46,3 @@ self.addEventListener("fetch", (event) => {
     })
   );
 });
-

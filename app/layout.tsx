@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import InstallPrompt from "@/components/pwa/InstallPrompt";
 import ColorWaveLoader from "@/components/ui/ColorWaveLoader";
 import { SidebarProvider } from "@/components/layout/SidebarContext";
@@ -15,11 +15,15 @@ export const metadata: Metadata = {
   icons: { icon: "/icons/icon-192.svg", apple: "/icons/icon-192.svg" },
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: "cover",
+  themeColor: "#0b1020",
+};
+
+export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en">
       <body className="bg-background text-foreground antialiased">
