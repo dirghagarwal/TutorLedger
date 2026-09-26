@@ -45,20 +45,6 @@ export const paymentInputSchema = z.object({
   coveredClassCount: z.number().int().positive().optional().nullable(),
   notes: z.string().default(""),
   allocations: z.array(z.object({ sessionId: z.string().min(1), amount: z.number().int().positive() })).optional().default([]),
-}).superRefine((value, ctx) => {
-  if (value.billingPeriod === BillingPeriod.MONTHLY && !value.coveredMonth) {
-    ctx.addIssue({ code: "custom", path: ["coveredMonth"], message: "Select the month this payment covers." });
-  }
-  if (value.billingPeriod === BillingPeriod.CLASSWISE) {
-    if (!value.coveredFromDate || !value.coveredToDate) {
-      ctx.addIssue({ code: "custom", path: ["coveredFromDate"], message: "Select the class coverage start and end dates." });
-    } else if (value.coveredFromDate > value.coveredToDate) {
-      ctx.addIssue({ code: "custom", path: ["coveredToDate"], message: "Coverage end date must be on or after the start date." });
-    }
-    if (!value.coveredClassCount) {
-      ctx.addIssue({ code: "custom", path: ["coveredClassCount"], message: "Enter the number of classes covered." });
-    }
-  }
 });
 
 export type AttendanceInput = z.infer<typeof attendanceInputSchema>;
