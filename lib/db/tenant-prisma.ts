@@ -54,4 +54,7 @@ function createTenantPrisma() {
 
 export const tenantPrisma: PrismaClient = (globalForTenantPrisma.tenantPrisma ?? createTenantPrisma()) as unknown as PrismaClient;
 
-if (process.env.NODE_ENV !== "production") globalForTenantPrisma.tenantPrisma = tenantPrisma as unknown as ReturnType<typeof createTenantPrisma>;
+// Reuse the tenant-scoped client in warm production runtimes too. The extension
+// still resolves the current request's teacher ID per operation, so the singleton
+// does not weaken tenant isolation.
+globalForTenantPrisma.tenantPrisma = tenantPrisma as unknown as ReturnType<typeof createTenantPrisma>;
